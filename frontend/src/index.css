@@ -1,0 +1,177 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 10% 4%;
+    --foreground: 0 0% 92%;
+
+    --card: 240 8% 7%;
+    --card-foreground: 0 0% 92%;
+
+    --popover: 240 8% 8%;
+    --popover-foreground: 0 0% 92%;
+
+    /* Violet/purple accent — premium AI feel */
+    --primary: 258 90% 66%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 240 6% 12%;
+    --secondary-foreground: 0 0% 70%;
+
+    --muted: 240 6% 11%;
+    --muted-foreground: 0 0% 42%;
+
+    --accent: 240 6% 14%;
+    --accent-foreground: 0 0% 92%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 6% 16%;
+    --input: 240 6% 13%;
+    --ring: 258 90% 66%;
+
+    --radius: 0.6rem;
+
+    --success: 142 71% 45%;
+    --warning: 38 92% 50%;
+    --info: 217 91% 60%;
+
+    --sidebar-background: 240 10% 5%;
+    --sidebar-foreground: 0 0% 68%;
+    --sidebar-primary: 258 90% 66%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 6% 10%;
+    --sidebar-accent-foreground: 0 0% 92%;
+    --sidebar-border: 240 6% 13%;
+    --sidebar-ring: 258 90% 66%;
+
+    /* Glow colors */
+    --glow-primary: rgba(124, 80, 255, 0.25);
+    --glow-success: rgba(34, 197, 94, 0.2);
+    --glow-danger: rgba(239, 68, 68, 0.2);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html, body, #__next {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Premium custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 99px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary) / 0.5);
+  }
+
+  /* Text selection */
+  ::selection {
+    background: hsl(var(--primary) / 0.3);
+    color: hsl(var(--foreground));
+  }
+}
+
+@layer components {
+  /* Glassmorphism card */
+  .glass-card {
+    background: hsl(var(--card) / 0.8);
+    backdrop-filter: blur(12px);
+    border: 1px solid hsl(var(--border));
+  }
+
+  /* Glow button */
+  .btn-glow {
+    box-shadow: 0 0 16px var(--glow-primary);
+    transition: box-shadow 0.2s ease;
+  }
+  .btn-glow:hover {
+    box-shadow: 0 0 28px var(--glow-primary), 0 0 8px var(--glow-primary);
+  }
+
+  /* Gradient text */
+  .gradient-text {
+    background: linear-gradient(135deg, hsl(258 90% 72%), hsl(200 90% 65%));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* AI pulse ring */
+  .pulse-ring {
+    position: relative;
+  }
+  .pulse-ring::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 2px solid hsl(var(--primary) / 0.4);
+    animation: pulse-ring 2s ease-in-out infinite;
+  }
+
+  /* Scan line overlay */
+  .scan-overlay {
+    position: relative;
+    overflow: hidden;
+  }
+  .scan-overlay::after {
+    content: '';
+    position: absolute;
+    top: -100%;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.8), transparent);
+    animation: scan-line 2.5s ease-in-out infinite;
+  }
+
+  /* Active sidebar item glow */
+  .sidebar-active {
+    background: hsl(var(--primary) / 0.12);
+    color: hsl(var(--foreground));
+    border-left: 2px solid hsl(var(--primary));
+  }
+}
+
+@layer utilities {
+  .gradient-border {
+    background: linear-gradient(hsl(var(--card)), hsl(var(--card))) padding-box,
+      linear-gradient(135deg, hsl(var(--primary) / 0.6), hsl(200 90% 65% / 0.4)) border-box;
+    border: 1px solid transparent;
+  }
+
+  .glow-text-primary {
+    text-shadow: 0 0 20px hsl(var(--primary) / 0.6);
+  }
+}
