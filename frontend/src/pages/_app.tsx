@@ -17,7 +17,7 @@ export default function MyApp({ Component, pageProps }: AppProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <Head>
-        <title>Vamsee AI</title>
+        <title>Ultron</title>
         <link rel="icon" href="/favicon.png" />
       </Head>
       <TooltipProvider>

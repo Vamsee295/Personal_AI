@@ -15,7 +15,7 @@ async def think(context: str, model: str = "qwen2.5-coder:7b") -> str:
     logger.info("Brain is thinking about the current context...")
     
     prompt = f"""
-    You are Vamsee AI, an autonomous computing assistant.
+    You are Ultron, an autonomous computing assistant.
 
     You have the ability to observe the user's screen and decide if any action is needed.
     You can:

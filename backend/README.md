@@ -1,6 +1,6 @@
-# 🧠 Vamsee AI – Backend
+# 🧠 Ultron – Backend
 
-A high-performance, modular Intelligence Engine built with **Python** and **FastAPI**. It serves as the core "brain" for the Vamsee AI IDE, orchestrating LLM communication and system automation.
+A high-performance, modular Intelligence Engine built with **Python** and **FastAPI**. It serves as the core "brain" for the Ultron IDE, orchestrating LLM communication and system automation.
 
 ## 🚀 Tech Stack
 - **Framework:** FastAPI (Asynchronous Python)

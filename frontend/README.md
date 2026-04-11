@@ -1,6 +1,6 @@
-# Vamsee AI – Frontend
+# Ultron – Frontend
 
-The frontend of Vamsee AI is a modern, responsive, and aesthetic user interface built with **Next.js** and **React**. It serves as the primary workspace for the AI-powered IDE experience.
+The frontend of Ultron is a modern, responsive, and aesthetic user interface built with **Next.js** and **React**. It serves as the primary workspace for the AI-powered IDE experience.
 
 ## Core Roles
 - **IDE Interface**: Provides a file explorer, multi-tab editor view (integration-ready), and integrated terminal.
@@ -38,4 +38,4 @@ The frontend of Vamsee AI is a modern, responsive, and aesthetic user interface 
    The frontend will be accessible at `http://localhost:3000`.
 
 ## Architecture Note
-The frontend communicates exclusively with the **Vamsee AI Backend** via REST APIs and WebSockets. Ensure the backend is running at `http://localhost:8000` for the AI and system features to function correctly.
+The frontend communicates exclusively with the **Ultron Backend** via REST APIs and WebSockets. Ensure the backend is running at `http://localhost:8000` for the AI and system features to function correctly.

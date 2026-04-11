@@ -60,7 +60,7 @@ export function FloatingBubble() {
             <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-violet-600 to-blue-500 flex items-center justify-center">
               <Terminal className="w-3.5 h-3.5 text-white" />
             </div>
-            <p className="text-[12px] font-semibold text-foreground">Vamsee AI</p>
+            <p className="text-[12px] font-semibold text-foreground">Ultron</p>
             <span className="ml-auto text-[10px] text-success flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-success animate-status-pulse inline-block" />
               Online

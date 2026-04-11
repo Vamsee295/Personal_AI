@@ -1,6 +1,6 @@
-# Vamsee AI – Local AI Agent & IDE
+# Ultron – Local AI Agent & IDE
 
-Vamsee AI is a powerful, locally-hosted AI coding assistant and system agent similar to Cursor and Antigravity IDE. It combines a sleek React/Next.js frontend with a modular FastAPI backend to provide an integrated development experience powered by local LLMs (Ollama).
+Ultron is a powerful, locally-hosted AI coding assistant and system agent similar to Cursor and Antigravity IDE. It combines a sleek React/Next.js frontend with a modular FastAPI backend to provide an integrated development experience powered by local LLMs (Ollama).
 
 ## Project Structure
 - **[frontend/](./frontend)**: Next.js application containing the IDE workspace, chat panel, and system control UI.

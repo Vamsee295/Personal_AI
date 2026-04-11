@@ -1,5 +1,5 @@
 /**
- * api.ts – Centralised API client for the Vamsee AI backend (localhost:8000)
+ * api.ts – Centralised API client for the Ultron backend (localhost:8000)
  */
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";

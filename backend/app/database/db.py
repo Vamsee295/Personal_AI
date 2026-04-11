@@ -15,7 +15,7 @@ from app.utils.logger import get_logger
 
 logger = get_logger("db")
 
-DB_PATH = Path("vamsee_ai.db")
+DB_PATH = Path("ultron.db")
 
 
 # ══════════════════════════════════════════════════════════════════

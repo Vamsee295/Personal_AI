@@ -9,7 +9,7 @@ from app.utils.logger import get_logger
 logger = get_logger("runner")
 
 if __name__ == "__main__":
-    logger.info("🚀  Starting Vamsee AI Backend …")
+    logger.info("🚀  Starting Ultron Backend …")
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",

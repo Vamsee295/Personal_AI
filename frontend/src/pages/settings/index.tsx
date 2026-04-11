@@ -22,8 +22,8 @@ const features: Feature[] = [
 ];
 
 const SettingsPage = () => {
-  const [name, setName] = useState("Vamsee AI");
-  const [savedName, setSavedName] = useState("Vamsee AI");
+  const [name, setName] = useState("Ultron");
+  const [savedName, setSavedName] = useState("Ultron");
   const [nameSaved, setNameSaved] = useState(false);
   const [toggles, setToggles] = useState<Record<string, boolean>>(
     Object.fromEntries(features.map((f) => [f.key, f.default]))

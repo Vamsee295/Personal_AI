@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     )
 
     # ── Application ────────────────────────────────────────────────
-    APP_NAME: str = "Vamsee AI Backend"
+    APP_NAME: str = "Ultron Backend"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
 
@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     ]
 
     # ── Database ─────────────────────────────────────────────────
-    DATABASE_URL: str = "sqlite+aiosqlite:///./vamsee_ai.db"
+    DATABASE_URL: str = "sqlite+aiosqlite:///./ultron.db"
 
     # ── Logging ──────────────────────────────────────────────────
     LOG_LEVEL: str = "INFO"

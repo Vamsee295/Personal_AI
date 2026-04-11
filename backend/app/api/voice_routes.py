@@ -21,7 +21,7 @@ logger = get_logger("voice_routes")
 router = APIRouter(prefix="/api/voice", tags=["Voice Assistant"])
 
 _VOICE_SYSTEM = (
-    "You are Vamsee AI, a helpful local voice assistant. "
+    "You are Ultron, a helpful local voice assistant. "
     "Respond in 1-3 short sentences, conversationally and naturally. "
     "If a command involves the computer (open VS Code, organise files, etc.) say you will do it."
 )

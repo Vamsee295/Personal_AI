@@ -27,7 +27,7 @@ const initialCalls: Call[] = [
     duration: "2:34",
     transcript: [
       { speaker: "Rahul", text: "Hey, is Vamsee available?" },
-      { speaker: "AI", text: "Hello sir, I am Vamsee's AI assistant. He is currently unavailable. How may I help you?" },
+      { speaker: "AI", text: "Hello sir, I am Ultron, Vamsee's AI assistant. He is currently unavailable. How may I help you?" },
       { speaker: "Rahul", text: "Please tell him the meeting has been moved to tomorrow at 3 PM." },
       { speaker: "AI", text: "Understood. I'll inform Vamsee right away. Is there anything else?" },
       { speaker: "Rahul", text: "No that's all, thanks." },
@@ -44,7 +44,7 @@ const initialCalls: Call[] = [
     duration: "1:12",
     transcript: [
       { speaker: "Priya", text: "Can you check if Vamsee is free tomorrow at 3?" },
-      { speaker: "AI", text: "Hello Priya, Vamsee is unavailable right now. I've noted your request for a meeting tomorrow at 3 PM." },
+      { speaker: "AI", text: "Hello Priya, Vamsee is unavailable right now. I am Ultron, and I've noted your request for a meeting tomorrow at 3 PM." },
       { speaker: "Priya", text: "Great, thanks!" },
     ],
   },
@@ -57,7 +57,7 @@ const initialCalls: Call[] = [
     time: "3 hr ago",
     duration: "0:18",
     transcript: [
-      { speaker: "AI", text: "Hello, I am Vamsee's AI assistant. He is currently unavailable. How may I assist you?" },
+      { speaker: "AI", text: "Hello, I am Ultron, Vamsee's AI assistant. He is currently unavailable. How may I assist you?" },
       { speaker: "Unknown", text: "..." },
     ],
   },

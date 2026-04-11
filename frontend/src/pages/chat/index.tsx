@@ -25,7 +25,7 @@ const Chat = () => {
     {
       id: 1,
       role: "ai",
-      content: "Hello Vamsee! I'm your AI assistant powered by **qwen2.5-coder:7b** running locally. How can I help you today?",
+      content: "Hello Vamsee! I'm Ultron, your AI assistant powered by **qwen2.5-coder:7b** running locally. How can I help you today?",
       timestamp: getTime(),
     },
   ]);
@@ -224,7 +224,7 @@ const Chat = () => {
             <Terminal className="w-4 h-4 text-white" />
           </div>
           <div>
-            <h1 className="text-[13px] font-semibold text-foreground">Vamsee AI</h1>
+            <h1 className="text-[13px] font-semibold text-foreground">Ultron</h1>
             <p className="text-[10px] text-muted-foreground">qwen2.5-coder:7b · local model</p>
           </div>
         </div>

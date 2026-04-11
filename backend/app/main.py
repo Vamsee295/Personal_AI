@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.api import chat_routes, file_routes, terminal_routes, agent_routes, system_routes, voice_routes, screen_routes
+from app.api import chat_routes, file_routes, terminal_routes, agent_routes, system_routes, voice_routes, screen_routes, executor_routes, vision_routes, whatsapp_routes, health_routes, memory_routes, voice_ws_routes
 from app.utils.logger import get_logger
 
 logger = get_logger("main")
@@ -23,7 +23,7 @@ async def lifespan(app: FastAPI):
     import asyncio
     from app.api.screen_routes import screen_monitoring_loop
 
-    logger.info("═══ Vamsee AI Backend v%s starting ═══", settings.APP_VERSION)
+    logger.info("═══ Ultron Backend v%s starting ═══", settings.APP_VERSION)
     logger.info("Ollama URL  : %s", settings.OLLAMA_BASE_URL)
     logger.info("Default model: %s", settings.DEFAULT_MODEL)
     
@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
     
     # Cancel the background task on shutdown
     screen_task.cancel()
-    logger.info("═══ Vamsee AI Backend shutting down ═══")
+    logger.info("═══ Ultron Backend shutting down ═══")
 
 
 # ── App instance ───────────────────────────────────────────────────
@@ -42,7 +42,7 @@ app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     description=(
-        "Backend API for Vamsee AI – a local AI-powered coding IDE. "
+        "Backend API for Ultron – a local AI-powered coding assistant. "
         "Provides AI chat, code generation, file management, terminal execution, "
         "and an autonomous agent engine powered by Ollama."
     ),
@@ -75,6 +75,12 @@ app.include_router(agent_routes.router)
 app.include_router(system_routes.router)
 app.include_router(voice_routes.router)
 app.include_router(screen_routes.router)
+app.include_router(executor_routes.router)
+app.include_router(vision_routes.router)
+app.include_router(whatsapp_routes.router)
+app.include_router(health_routes.router)
+app.include_router(memory_routes.router)
+app.include_router(voice_ws_routes.router)
 
 
 # ── Root ───────────────────────────────────────────────────────────

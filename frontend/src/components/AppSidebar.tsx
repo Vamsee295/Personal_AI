@@ -1,10 +1,11 @@
-import { LayoutDashboard, Mic, MessageSquare, CheckSquare, Phone, FolderOpen, Monitor, Settings, Terminal } from "lucide-react";
+import { LayoutDashboard, Mic, MessageSquare, CheckSquare, Phone, FolderOpen, Monitor, Settings, Terminal, Cpu } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { cn } from "@/lib/utils";
 
 const mainNav = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Agent Control", url: "/control", icon: Cpu },
   { title: "Voice Assistant", url: "/voice", icon: Mic },
   { title: "Chat", url: "/chat", icon: MessageSquare },
   { title: "Tasks", url: "/tasks", icon: CheckSquare },
@@ -33,7 +34,7 @@ export function AppSidebar() {
             <Terminal className="w-4 h-4 text-white" />
           </div>
           <div>
-            <div className="text-sm font-semibold text-foreground">Vamsee AI</div>
+            <div className="text-sm font-semibold text-foreground">Ultron</div>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-success animate-status-pulse" />
               <span className="text-[10px] text-muted-foreground">Online</span>
