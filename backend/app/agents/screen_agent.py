@@ -7,7 +7,11 @@ from typing import Optional
 import base64
 import io
 
+import pytesseract
 from app.utils.logger import get_logger
+
+# Set Tesseract path directly for consistency on this machine
+pytesseract.pytesseract.tesseract_cmd = r"V:\Installations\tesseract.exe"
 
 logger = get_logger("screen_agent")
 
@@ -62,6 +66,28 @@ class ScreenAgent:
         except ImportError as exc:
             logger.warning("pytesseract not installed: %s", exc)
             raise RuntimeError("OCR dependencies not installed. Run: pip install pytesseract Pillow")
+
+    def detect_errors(self) -> Optional[str]:
+        """
+        Captures screen, runs OCR, and checks for error keywords.
+        Returns the text around the error if found, otherwise None.
+        """
+        try:
+            text = self.extract_text()
+            text_lower = text.lower()
+            
+            error_keywords = ["exception", "error", "traceback", "failed to fetch", "internal server error", "uncaught referenceerror", "syntaxerror", "typeerror", "referenceerror"]
+            
+            # Simple check: if any keyword is in the text
+            for keyword in error_keywords:
+                if keyword in text_lower:
+                    logger.info("Detected error keyword: %s", keyword)
+                    return text
+            
+            return None
+        except Exception as e:
+            logger.error("Error in detect_errors: %s", e)
+            return None
 
     def click(self, x: int, y: int) -> None:
         """Move mouse and click at (x, y)."""

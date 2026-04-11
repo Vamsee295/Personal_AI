@@ -1,66 +1,60 @@
-# Vamsee AI – Backend
+# 🧠 Vamsee AI – Backend
 
-The backend of Vamsee AI is a high-performance, modular API built with **Python** and **FastAPI**. It acts as the "brain" of the AI IDE, handling AI communication, file system operations, terminal execution, and system-level automation.
+A high-performance, modular Intelligence Engine built with **Python** and **FastAPI**. It serves as the core "brain" for the Vamsee AI IDE, orchestrating LLM communication and system automation.
 
-## Core Roles
-- **AI Engine Integration**: Communicates with local LLMs via **Ollama** (streaming supported).
-- **Security Sandboxing**: Restricts file access to allowed workspace directories and blocks dangerous shell commands.
-- **System Automation**: Provides services for screen capture, OCR, voice commands, and application control (e.g., opening VS Code).
-- **Workspace Management**: Tracks project folders, builds file trees, and indexes code.
-- **Persistent Storage**: Uses **SQLite** via `aiosqlite` for task tracking, activity logging, and AI audit history.
+## 🚀 Tech Stack
+- **Framework:** FastAPI (Asynchronous Python)
+- **AI Integration:** Ollama (Local LLM Execution)
+- **Automation:** Custom Agent Engine for file, terminal, and system tasks.
+- **Database:** SQLite (via `aiosqlite`) for task persistence.
+- **Networking:** WebSockets for real-time streaming and Pydantic for validation.
 
-## Technology Stack
-- **FastAPI**: Main web framework.
-- **Uvicorn**: ASGI server.
-- **Ollama Client**: Custom async client for local AI models (Qwen, DeepSeek, etc.).
-- **Pydantic**: Data validation and settings management.
-- **WebSockets**: Real-time streaming for AI chat and terminal output.
-- **SQLite**: lightweight database for agents and logs.
+## 🛠️ How It Works
+The backend operates as a central bridge between the **Frontend UI** and **Local Intelligence**:
+1. **Chat & Planning:** Processes natural language via Ollama and uses a `Planner` to map intent to actionable system commands.
+2. **Autonomous Agent:** Executes multi-step workflows (e.g., "organize my downloads" or "fix this error") by piping AI thoughts into localized system tools.
+3. **System Access:** Safely manages file CRUD, terminal execution, and screen monitoring within an isolated workspace.
 
-## Getting Started
+---
 
-### Prerequisites
-1. **Python 3.10+** installed on your system.
-2. **Ollama** installed and running locally.
-3. (Optional) **Tesseract OCR** installed for screen-reading features.
+## 🏗️ Installation
 
-### Installation & Setup
-1. Navigate to the backend directory:
-   ```bash
-   cd backend
-   ```
-2. Create and activate a virtual environment:
-   ```powershell
-   python -m venv venv
-   .\venv\Scripts\Activate.ps1
-   ```
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-4. Configure environment variables:
-   ```powershell
-   cp .env.example .env
-   # Edit .env and update ALLOWED_WORKSPACE_ROOTS
-   ```
+### 1. Prerequisites
+- **Python 3.10+**
+- **Ollama** (Running locally with `qwen2.5-coder` or similar)
 
-### Running the Backend
-1. **Start the FastAPI Server**:
-   ```bash
-   python run.py
-   ```
-   The server will start at `http://localhost:8000`.
-   Interactive API documentation is available at `http://localhost:8000/docs`.
+### 2. Setup Commands
+Run these in the `backend` directory:
 
-2. **Start the Background Agent (Optional)**:
-   ```bash
-   python agent_daemon.py
-   ```
-   This runs the voice listener and periodic task reminders.
+```powershell
+# Create virtual environment
+python -m venv venv
 
-## API Modules
-- `/api/chat`: AI chat and code generation.
-- `/api/files`: File system CRUD and search.
-- `/api/terminal`: Command execution and output streaming.
-- `/api/agent`: Autonomous multi-step agent tasks.
-- `/api/system`: System control (apps, screen, voice).
+# Activate virtual environment
+.\venv\Scripts\Activate.ps1
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+```
+> [!NOTE]
+> Edit `.env` to set your `ALLOWED_WORKSPACE_ROOTS`.
+
+---
+
+## ⚡ Running the Backend
+
+### Start API Server
+The main server handles all UI requests and AI orchestration.
+```bash
+python run.py
+```
+*API Docs: [http://localhost:8000/docs](http://localhost:8000/docs)*
+
+### Start Agent Daemon (Optional)
+Runs background services like voice listening and periodic system tasks.
+```bash
+python agent_daemon.py
+```

@@ -65,7 +65,8 @@ async def api_screen_capture():
     """Return a base64-encoded PNG of the current screen."""
     try:
         from app.agents.screen_agent import screen_agent
-        b64 = screen_agent.capture_base64()
+        import asyncio
+        b64 = await asyncio.to_thread(screen_agent.capture_base64)
         return {"success": True, "image_base64": b64}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
@@ -76,7 +77,8 @@ async def api_screen_text():
     """Run OCR on the current screen and return extracted text."""
     try:
         from app.agents.screen_agent import screen_agent
-        text = screen_agent.extract_text()
+        import asyncio
+        text = await asyncio.to_thread(screen_agent.extract_text)
         return {"success": True, "text": text}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))

@@ -20,10 +20,20 @@ logger = get_logger("main")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup / shutdown log hooks."""
+    import asyncio
+    from app.api.screen_routes import screen_monitoring_loop
+
     logger.info("═══ Vamsee AI Backend v%s starting ═══", settings.APP_VERSION)
     logger.info("Ollama URL  : %s", settings.OLLAMA_BASE_URL)
     logger.info("Default model: %s", settings.DEFAULT_MODEL)
+    
+    # Start the screen monitoring background task
+    screen_task = asyncio.create_task(screen_monitoring_loop())
+    
     yield
+    
+    # Cancel the background task on shutdown
+    screen_task.cancel()
     logger.info("═══ Vamsee AI Backend shutting down ═══")
 
 

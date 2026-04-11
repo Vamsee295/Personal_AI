@@ -1,11 +1,11 @@
 "use client";
-import { useState } from "react";
-import { Camera, Zap, RefreshCw, ChevronDown, CheckCircle, AlertTriangle, Eye, AlertCircle } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Camera, Zap, RefreshCw, ChevronDown, CheckCircle, AlertTriangle, Eye, AlertCircle, Activity } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { analyseScreen, type ScreenAnalyseResponse } from "@/lib/api";
+import { analyseScreen, captureScreen, type ScreenAnalyseResponse } from "@/lib/api";
 
-type ScanState = "idle" | "scanning" | "result" | "error";
+type ScanState = "idle" | "scanning" | "result" | "error" | "monitoring";
 
 const ScreenAI = () => {
   const [scanState, setScanState] = useState<ScanState>("idle");
@@ -13,8 +13,91 @@ const ScreenAI = () => {
   const [error, setError] = useState<string>("");
   const [showExplain, setShowExplain] = useState(false);
   const [previewSrc, setPreviewSrc] = useState<string | null>(null);
+  const [isLiveMonitoring, setIsLiveMonitoring] = useState(false);
+  const [monitoringStatus, setMonitoringStatus] = useState("Monitoring screen in background...");
+  
+  const wsRef = useRef<WebSocket | null>(null);
+  const livePreviewInterval = useRef<NodeJS.Timeout | null>(null);
+
+  // Poll screen just for UI preview when monitoring
+  useEffect(() => {
+    if (isLiveMonitoring) {
+      livePreviewInterval.current = setInterval(async () => {
+        try {
+          const data = await captureScreen();
+          if (data.image_base64) {
+            setPreviewSrc(`data:image/png;base64,${data.image_base64}`);
+          }
+        } catch (e) {
+          // ignore preview errors
+        }
+      }, 5000);
+    } else {
+      if (livePreviewInterval.current) clearInterval(livePreviewInterval.current);
+    }
+    return () => {
+      if (livePreviewInterval.current) clearInterval(livePreviewInterval.current);
+    };
+  }, [isLiveMonitoring]);
+
+  const toggleLiveMonitoring = () => {
+    if (isLiveMonitoring) {
+      // Turn off
+      wsRef.current?.close();
+      wsRef.current = null;
+      setIsLiveMonitoring(false);
+      setScanState("idle");
+    } else {
+      // Turn on
+      const wsUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000").replace(/^http/, 'ws') + "/api/screen/live-insights";
+      const ws = new WebSocket(wsUrl);
+      
+      ws.onopen = () => {
+        setIsLiveMonitoring(true);
+        setScanState("monitoring");
+        setResult(null);
+        setError("");
+        setShowExplain(false);
+        setMonitoringStatus("Monitoring screen in background...");
+      };
+      
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "status") {
+            setMonitoringStatus(data.message);
+            // Flash scanning state briefly for UI feedback
+            setScanState("scanning");
+          } else if (data.type === "insight") {
+            setScanState("result");
+            setResult({
+              screen_text: data.error_text,
+              analysis: data.analysis,
+            });
+            setShowExplain(true); // Auto-open explanation
+          }
+        } catch (e) {
+          console.error("WS Parse error", e);
+        }
+      };
+      
+      ws.onerror = () => {
+        setError("Failed to connect to live monitoring service");
+        setScanState("error");
+        setIsLiveMonitoring(false);
+      };
+      
+      ws.onclose = () => {
+        setIsLiveMonitoring(false);
+        if (scanState === "monitoring") setScanState("idle");
+      };
+      
+      wsRef.current = ws;
+    }
+  };
 
   const handleCapture = async () => {
+    if (isLiveMonitoring) return;
     setScanState("scanning");
     setError("");
     setShowExplain(false);
@@ -34,7 +117,6 @@ const ScreenAI = () => {
     }
   };
 
-  // Detect if text looks like an error
   const hasError =
     result &&
     /error|exception|traceback|undefined|null|failed|crash/i.test(result.screen_text);
@@ -46,7 +128,7 @@ const ScreenAI = () => {
         <div>
           <h1 className="text-base font-semibold text-foreground">Screen AI</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            AI sees and understands your screen in real time
+            AI sees and understands your screen
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -56,13 +138,28 @@ const ScreenAI = () => {
               Analysis ready
             </Badge>
           )}
+          
+          <button
+            onClick={toggleLiveMonitoring}
+            className={cn(
+               "flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-all border",
+               isLiveMonitoring 
+                ? "bg-warning/20 border-warning text-warning hover:bg-warning/30" 
+                : "bg-card border-border text-foreground hover:bg-accent"
+            )}
+            style={isLiveMonitoring ? { boxShadow: "0 0 14px rgba(255,184,76,0.3)" } : {}}
+          >
+            <Activity className={cn("w-3.5 h-3.5", isLiveMonitoring && "animate-pulse")} /> 
+            {isLiveMonitoring ? "Stop Live Monitoring" : "Live Monitoring"}
+          </button>
+
           <button
             onClick={handleCapture}
-            disabled={scanState === "scanning"}
+            disabled={scanState === "scanning" || isLiveMonitoring}
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-[13px] font-medium hover:bg-primary/90 transition-all disabled:opacity-60"
-            style={{ boxShadow: "0 0 14px rgba(124,80,255,0.3)" }}
+            style={!isLiveMonitoring ? { boxShadow: "0 0 14px rgba(124,80,255,0.3)" } : {}}
           >
-            {scanState === "scanning" ? (
+            {scanState === "scanning" && !isLiveMonitoring ? (
               <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Scanning...</>
             ) : (
               <><Camera className="w-3.5 h-3.5" /> Capture now</>
@@ -76,7 +173,10 @@ const ScreenAI = () => {
         <div className="grid grid-cols-2 gap-5 h-full">
           {/* Left: Live Capture Preview */}
           <div className="flex flex-col gap-4">
-            <div className="bg-card border border-border rounded-xl overflow-hidden flex-1">
+            <div className={cn(
+              "bg-card border rounded-xl overflow-hidden flex-1 transition-all",
+              isLiveMonitoring ? "border-warning/50 ring-1 ring-warning/30" : "border-border"
+            )}>
               <div className="px-5 py-3.5 border-b border-border flex items-center justify-between">
                 <h2 className="text-[13px] font-semibold text-foreground">Live capture</h2>
                 <div className="flex items-center gap-2">
@@ -92,39 +192,53 @@ const ScreenAI = () => {
                   "min-h-[220px]"
                 )}
               >
-                {scanState === "scanning" ? (
+                {scanState === "scanning" && !isLiveMonitoring ? (
                   <div className="flex flex-col items-center justify-center gap-3">
                     <RefreshCw className="w-8 h-8 text-primary animate-spin" />
                     <p className="text-[12px] text-muted-foreground">Capturing screen...</p>
                   </div>
                 ) : previewSrc ? (
                   // Real screenshot from backend
-                  <img
-                    src={previewSrc}
-                    alt="Screen capture"
-                    className="w-full h-full object-contain max-h-[220px]"
-                  />
+                  <div className="relative w-full h-full flex items-center justify-center bg-black/10">
+                    <img
+                      src={previewSrc}
+                      alt="Screen capture"
+                      className="w-full h-full object-contain max-h-[220px]"
+                    />
+                    {isLiveMonitoring && scanState === "scanning" && (
+                       <div className="absolute inset-0 bg-primary/10 animate-pulse-ring flex items-center justify-center">
+                          <Badge className="bg-primary/90 text-white border-0 shadow-lg">Analysing Error...</Badge>
+                       </div>
+                    )}
+                  </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center gap-3 py-8 text-center px-4">
                     <Camera className="w-10 h-10 text-muted-foreground/40" />
                     <p className="text-[13px] text-muted-foreground">
-                      Click <strong>Capture now</strong> to analyse your screen
-                    </p>
-                    <p className="text-[11px] text-muted-foreground/60">
-                      Requires Tesseract OCR to be installed
+                      {isLiveMonitoring ? "Waiting for screen preview..." : "Click Capture now to analyse your screen"}
                     </p>
                   </div>
                 )}
               </div>
 
-              {/* OCR Text */}
+              {/* OCR Text / Status */}
               <div className="px-5 py-4">
-                <p className="text-[11px] text-muted-foreground mb-2">Extracted text (OCR):</p>
-                <div className="bg-secondary rounded-lg p-3 font-mono text-[11px] border border-border max-h-28 overflow-y-auto">
-                  {scanState === "scanning" ? (
+                <p className="text-[11px] text-muted-foreground mb-2">
+                   {isLiveMonitoring && scanState !== "result" ? "Live Status:" : "Extracted text (OCR):"}
+                </p>
+                <div className="bg-secondary rounded-lg p-3 font-mono text-[11px] border border-border max-h-28 overflow-y-auto min-h-[4rem]">
+                  {scanState === "monitoring" || (isLiveMonitoring && scanState === "scanning") ? (
+                    <div className="flex items-center gap-3 h-full">
+                       <span className="relative flex h-2.5 w-2.5">
+                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-warning opacity-75"></span>
+                         <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-warning"></span>
+                       </span>
+                       <p className="text-warning-foreground font-medium">{monitoringStatus}</p>
+                    </div>
+                  ) : scanState === "scanning" && !isLiveMonitoring ? (
                     <p className="text-muted-foreground animate-pulse">Reading screen content...</p>
                   ) : result ? (
-                    <p className="text-foreground whitespace-pre-wrap">{result.screen_text.slice(0, 400)}</p>
+                    <p className="text-foreground whitespace-pre-wrap">{result.screen_text}</p>
                   ) : scanState === "error" ? (
                     <p className="text-destructive">{error}</p>
                   ) : (
@@ -137,14 +251,14 @@ const ScreenAI = () => {
 
           {/* Right: AI Insight */}
           <div className="flex flex-col gap-4">
-            <div className="bg-card border border-border rounded-xl overflow-hidden flex-1">
+            <div className="bg-card border border-border rounded-xl overflow-hidden flex-1 flex flex-col">
               <div className="px-5 py-3.5 border-b border-border flex items-center gap-2">
-                <Zap className="w-4 h-4 text-primary" />
+                <Zap className={cn("w-4 h-4", isLiveMonitoring ? "text-warning" : "text-primary")} />
                 <h2 className="text-[13px] font-semibold text-foreground">AI Insight</h2>
                 <span className="text-[10px] text-muted-foreground ml-auto">qwen2.5-coder:7b</span>
               </div>
 
-              <div className="px-5 py-5 space-y-4">
+              <div className="px-5 py-5 space-y-4 flex-1 overflow-y-auto">
                 {scanState === "scanning" && (
                   <div className="space-y-3">
                     {[...Array(3)].map((_, i) => (
@@ -155,24 +269,31 @@ const ScreenAI = () => {
                       />
                     ))}
                     <p className="text-[11px] text-muted-foreground text-center animate-pulse">
-                      AI is analysing your screen...
+                      AI is analysing the screen...
                     </p>
                   </div>
                 )}
 
-                {scanState === "error" && (
+                {scanState === "error" && !isLiveMonitoring && (
                   <div className="bg-destructive/10 border border-destructive/25 rounded-xl p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <AlertCircle className="w-4 h-4 text-destructive" />
                       <p className="text-[13px] font-semibold text-destructive">Capture failed</p>
                     </div>
                     <p className="text-[12px] text-muted-foreground leading-relaxed">{error}</p>
-                    <p className="text-[11px] text-muted-foreground mt-2">
-                      Make sure <code className="text-foreground bg-secondary px-1 rounded">mss</code>,{" "}
-                      <code className="text-foreground bg-secondary px-1 rounded">pytesseract</code>, and{" "}
-                      <strong>Tesseract OCR</strong> are installed.
-                    </p>
                   </div>
+                )}
+
+                {scanState === "monitoring" && (
+                   <div className="flex flex-col items-center justify-center h-full gap-4 text-center opacity-70">
+                      <Activity className="w-12 h-12 text-warning animate-pulse" />
+                      <div>
+                         <p className="text-[13px] font-semibold text-foreground">Monitoring for errors...</p>
+                         <p className="text-[11px] text-muted-foreground mt-1 max-w-[200px]">
+                            When an error appears on your screen, AI will auto-detect it and provide an explanation here.
+                         </p>
+                      </div>
+                   </div>
                 )}
 
                 {scanState === "result" && result && (
@@ -180,9 +301,9 @@ const ScreenAI = () => {
                     {/* Error/insight card */}
                     <div
                       className={cn(
-                        "border rounded-xl p-4",
+                        "border rounded-xl p-4 transition-all duration-500",
                         hasError
-                          ? "bg-destructive/10 border-destructive/25"
+                          ? "bg-destructive/10 border-destructive/25 shadow-[0_0_20px_rgba(239,68,68,0.15)]"
                           : "bg-primary/5 border-primary/20"
                       )}
                     >
@@ -198,7 +319,7 @@ const ScreenAI = () => {
                             hasError ? "text-destructive" : "text-success"
                           )}
                         >
-                          {hasError ? "Issue detected" : "Screen analysed"}
+                          {hasError ? "Error detected on screen" : "Screen analysed"}
                         </p>
                       </div>
                     </div>
@@ -217,9 +338,13 @@ const ScreenAI = () => {
                       />
                     </button>
                     {showExplain && (
-                      <div className="bg-secondary/40 rounded-xl px-4 py-3.5 border border-border text-[12px] text-muted-foreground leading-relaxed animate-fade-slide-up max-h-64 overflow-y-auto">
-                        <p className="text-foreground font-medium mb-2">AI says:</p>
-                        <p className="whitespace-pre-wrap">{result.analysis}</p>
+                      <div className="bg-secondary/40 rounded-xl px-4 py-4 border border-border text-[13px] leading-relaxed animate-fade-slide-up">
+                        <p className="text-foreground font-semibold mb-3 flex items-center gap-2">
+                           <Zap className="w-3.5 h-3.5 text-primary" /> AI Diagnosis:
+                        </p>
+                        <div className="text-muted-foreground whitespace-pre-wrap font-sans">
+                           {result.analysis}
+                        </div>
                       </div>
                     )}
                   </>
@@ -229,7 +354,7 @@ const ScreenAI = () => {
                   <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
                     <Camera className="w-10 h-10 text-muted-foreground/40" />
                     <p className="text-[13px] text-muted-foreground">
-                      Capture a screenshot to get AI insights
+                      Capture a screenshot to get AI insights, or enable Live Monitoring
                     </p>
                   </div>
                 )}

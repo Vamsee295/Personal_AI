@@ -4,6 +4,10 @@ import { Send, Mic, Terminal, MoreHorizontal, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { chatStream, getHealth, type ChatMessage as APIChatMessage } from "@/lib/api";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
+import "highlight.js/styles/github-dark.css";
 
 interface Message {
   id: number;
@@ -84,6 +88,133 @@ const Chat = () => {
   const statusLabel = ollamaOnline === null ? "Checking..." : ollamaOnline ? "Online" : "Offline";
   const statusBg = ollamaOnline === null ? "bg-muted/20" : ollamaOnline ? "bg-success/20" : "bg-destructive/20";
 
+  /**
+   * Layer 2: Response Formatter Layer
+   * Cleans AI response to fix common formatting issues before rendering.
+   */
+  /**
+   * Cleans AI response to fix common formatting issues before rendering.
+   */
+  const formatAIResponse = (text: string) => {
+    if (!text) return "";
+    
+    // Normalize line endings
+    let processed = text.replace(/\r\n/g, '\n');
+
+    // 1. Decouple glued backticks from preceding text
+    processed = processed.replace(/([^\n])(`{1,3})/g, "$1\n\n$2");
+
+    // 2. Fix known AI merged words failure modes
+    processed = processed.replace(/javapublic/g, "java\npublic");
+    
+    // 3. Spacing fix for lists and segments
+    processed = processed.replace(/([^\n])\n(\d+\.|\*|-)\s/g, "$1\n\n$2 ");
+    processed = processed.replace(/\n{3,}/g, "\n\n");
+
+    return processed;
+  };
+
+  /**
+   * Parses the message into digestible segments of text and code blocks.
+   */
+  const renderMessageContent = (content: string) => {
+    const cleaned = formatAIResponse(content);
+    
+    // Regex to find code blocks: ```[lang]\n[code]```
+    // Also catches cases where backticks are glued or missing a newline
+    const codeBlockRegex = /```(\w+)?\s*\n?([\s\S]*?)(?:```|$)/g;
+    
+    const parts: { type: "text" | "code"; content: string; lang?: string }[] = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = codeBlockRegex.exec(cleaned)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push({
+          type: "text",
+          content: cleaned.slice(lastIndex, match.index),
+        });
+      }
+
+      let lang = match[1] || "plaintext";
+      let code = match[2].trim();
+
+      // Fix mangled content leaked backticks
+      code = code.replace(/^`+/, "").replace(/`+$/, "").trim();
+
+      // Handle the "javapublic" case in detected language
+      if (lang.toLowerCase().startsWith("jav")) lang = "java";
+      if (lang.toLowerCase().startsWith("js")) lang = "javascript";
+      if (lang.toLowerCase().startsWith("ts")) lang = "typescript";
+      if (lang.toLowerCase().startsWith("py")) lang = "python";
+
+      parts.push({
+        type: "code",
+        lang,
+        content: code,
+      });
+
+      lastIndex = codeBlockRegex.lastIndex;
+    }
+
+    if (lastIndex < cleaned.length) {
+      parts.push({ type: "text", content: cleaned.slice(lastIndex) });
+    }
+
+    return (
+      <div className="space-y-4">
+        {parts.map((part, i) => (
+          <div key={i}>
+            {part.type === "code" ? (
+              <div className="relative group my-4 rounded-xl overflow-hidden border border-white/10 bg-[#0d1117]">
+                <div className="flex items-center justify-between px-4 py-2 bg-white/5 border-b border-white/5">
+                  <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
+                    {part.lang}
+                  </span>
+                  <button
+                    className="text-[10px] text-muted-foreground hover:text-white transition-colors"
+                    onClick={() => navigator.clipboard.writeText(part.content)}
+                  >
+                    Copy
+                  </button>
+                </div>
+                <div className="p-4 overflow-x-auto text-[12.5px] font-mono">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeHighlight]}
+                  >
+                    {`\`\`\`${part.lang}\n${part.content}\n\`\`\``}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            ) : (
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeHighlight]}
+                components={{
+                  h1: ({ children }) => <h1 className="text-lg font-bold mt-4 mb-2 text-primary">{children}</h1>,
+                  h2: ({ children }) => <h2 className="text-base font-bold mt-4 mb-2 text-primary/90">{children}</h2>,
+                  h3: ({ children }) => <h3 className="text-sm font-bold mt-3 mb-1">{children}</h3>,
+                  p: ({ children }) => <p className="mb-4 last:mb-0">{children}</p>,
+                  ul: ({ children }) => <ul className="list-disc ml-4 mb-4 space-y-1">{children}</ul>,
+                  ol: ({ children }) => <ol className="list-decimal ml-4 mb-4 space-y-1">{children}</ol>,
+                  li: ({ children }) => <li className="pl-1">{children}</li>,
+                  code: ({ node, inline, className, children, ...props }: any) => (
+                    <code className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-mono text-[12px]" {...props}>
+                      {children}
+                    </code>
+                  ),
+                }}
+              >
+                {part.content}
+              </ReactMarkdown>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Header */}
@@ -117,29 +248,35 @@ const Chat = () => {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-auto px-6 py-5 space-y-5">
+      <div className="flex-1 overflow-auto px-6 py-5 space-y-6">
         {messages.map((msg) => (
           <div
             key={msg.id}
-            className={cn("flex gap-3 animate-fade-slide-up", msg.role === "user" ? "justify-end" : "justify-start")}
+            className={cn("flex gap-4 animate-fade-slide-up", msg.role === "user" ? "justify-end" : "justify-start")}
           >
             {msg.role === "ai" && (
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-600 to-blue-500 flex items-center justify-center shrink-0 mt-0.5">
-                <Terminal className="w-3.5 h-3.5 text-white" />
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-600 to-blue-500 flex items-center justify-center shrink-0 mt-1 shadow-lg shadow-violet-500/20">
+                <Terminal className="w-4 h-4 text-white" />
               </div>
             )}
-            <div className="max-w-[68%]">
+            <div className="max-w-[85%] lg:max-w-[75%]">
               <div
                 className={cn(
-                  "rounded-2xl px-4 py-3 text-[13px] leading-relaxed whitespace-pre-wrap",
+                  "rounded-2xl px-6 py-4 text-[13.5px] leading-relaxed",
                   msg.role === "user"
-                    ? "bg-primary/20 text-foreground border border-primary/20 rounded-tr-sm"
+                    ? "bg-primary/20 text-foreground border border-primary/20 rounded-tr-sm whitespace-pre-wrap"
                     : msg.error
-                    ? "bg-destructive/10 text-destructive border border-destructive/20 rounded-tl-sm"
-                    : "bg-card text-foreground border border-border rounded-tl-sm"
+                    ? "bg-destructive/10 text-destructive border border-destructive/20 rounded-tl-sm whitespace-pre-wrap"
+                    : "bg-card text-foreground border border-border rounded-tl-sm shadow-sm prose prose-sm prose-invert max-w-none"
                 )}
               >
-                {msg.content || (
+                {msg.content ? (
+                  msg.role === "ai" && !msg.error ? (
+                    renderMessageContent(msg.content)
+                  ) : (
+                    msg.content
+                  )
+                ) : (
                   <span className="flex items-center gap-1.5 h-4">
                     {[0, 1, 2].map((i) => (
                       <span
