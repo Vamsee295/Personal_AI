@@ -64,6 +64,10 @@ class Settings(BaseSettings):
     # Manual path to tesseract.exe (e.g., "C:/Program Files/Tesseract-OCR/tesseract.exe")
     TESSERACT_PATH: Optional[str] = None
 
+    # ── Voice ────────────────────────────────────────────────────
+    PICOVOICE_ACCESS_KEY: Optional[str] = None
+    WAKE_WORD_PPN: Optional[str] = None
+
 
 # Singleton instance - import this everywhere.
 Settings.model_rebuild()

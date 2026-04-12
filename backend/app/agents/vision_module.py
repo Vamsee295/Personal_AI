@@ -325,16 +325,29 @@ Now process the user's goal and screen content below:
 """
 
 
-def _build_vision_prompt(user_goal: str, screen_text: str) -> str:
+def _build_vision_prompt(user_goal: str, screen_text: str, history: Optional[List[Dict[str, Any]]] = None) -> str:
     """Build the structured prompt to send to Ollama."""
+    # Screen context
     if not screen_text or _is_garbage(screen_text):
         screen_context = "(Screen text could not be read clearly. Make your best decision based on the goal alone.)"
     else:
         # Limit to 3000 chars to stay within model context
         screen_context = screen_text[:3000]
 
+    # History context
+    history_context = ""
+    if history:
+        history_lines = []
+        for i, item in enumerate(history):
+            act = item.get("action", {})
+            res = item.get("result", {})
+            line = f"Step {i+1}: Action={act.get('action')}, Target={act.get('target')}, Success={res.get('success')}"
+            history_lines.append(line)
+        history_context = "\n<previous_actions>\n" + "\n".join(history_lines) + "\n</previous_actions>\n"
+
     return (
         f"<goal>{user_goal}</goal>\n\n"
+        f"{history_context}"
         f"<screen_content>\n{screen_context}\n</screen_content>"
     )
 
@@ -379,6 +392,7 @@ def _extract_json_from_response(text: str) -> Dict[str, Any]:
 def analyze_screen_with_llm(
     user_goal: str,
     screen_text: str,
+    history: Optional[List[Dict[str, Any]]] = None,
     ollama_url: str = "http://localhost:11434",
     model: str = "qwen2.5-coder:7b",
 ) -> Dict[str, Any]:
@@ -396,7 +410,7 @@ def analyze_screen_with_llm(
     """
     import requests as req
 
-    prompt = _build_vision_prompt(user_goal, screen_text)
+    prompt = _build_vision_prompt(user_goal, screen_text, history)
     logger.info("Sending vision prompt to Ollama (model=%s, prompt_len=%d)", model, len(prompt))
 
     try:
@@ -477,7 +491,9 @@ def run_vision_action_loop(
 
         # 3. LLM decision
         try:
-            action = analyze_screen_with_llm(user_goal, screen_text, ollama_url, model)
+            # Pass recent results (last 5) for context
+            recent_history = step_log[-5:] if step_log else None
+            action = analyze_screen_with_llm(user_goal, screen_text, recent_history, ollama_url, model)
         except Exception as exc:
             logger.error("LLM step %d failed: %s", step, exc)
             step_log.append({
@@ -500,7 +516,32 @@ def run_vision_action_loop(
             })
             break
 
-        # 5. Execute action
+            break
+
+        # 5. Safety Brake: Check for infinite repetition
+        # If the same action + target was done >= 3 times in a row, stop.
+        consecutive_repeats = 0
+        for old_entry in reversed(step_log):
+            old_action = old_entry.get("action", {})
+            if old_action.get("action") == action.get("action") and \
+               old_action.get("target") == action.get("target"):
+                consecutive_repeats += 1
+            else:
+                break
+        
+        if consecutive_repeats >= 2:  # current would be the 3rd
+            err_msg = f"Safety Brake: Repeats detected for {action.get('action')}:{action.get('target')}. Stopping loop."
+            logger.warning(err_msg)
+            step_log.append({
+                "step": step,
+                "screen_text": screen_text[:500],
+                "action": action,
+                "result": {"success": False, "error": err_msg},
+                "stopped_early": True,
+            })
+            break
+
+        # 6. Execute action
         try:
             result = execute_action(action)
         except Exception as exc:

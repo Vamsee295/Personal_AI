@@ -26,10 +26,18 @@ logger = get_logger("daemon")
 
 
 async def handle_voice_command(text: str) -> str:
-    """Process a voice command through the AI and return a spoken reply."""
+    """Process a voice command through the AI executor and return a spoken reply."""
     logger.info("Voice: %s", text)
     await log_activity("voice_command", text)
-    return await ai_service.chat(text, history=[])
+    
+    try:
+        from app.api.executor_routes import execute_command, ExecuteRequest
+        req = ExecuteRequest(command=text)
+        res = await execute_command(req)
+        return str(res.result.get("message") or res.result.get("error") or "Done.")
+    except Exception as exc:
+        logger.error("Error executing voice command: %s", exc)
+        return "I ran into a problem executing that command."
 
 
 async def voice_loop() -> None:

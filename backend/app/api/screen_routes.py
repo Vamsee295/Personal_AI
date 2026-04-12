@@ -8,6 +8,7 @@ import asyncio
 from typing import List
 
 from app.services.ai_service import ai_service
+from app.models.schemas import ChatMessage
 from app.utils.logger import get_logger
 
 logger = get_logger("screen_routes")
@@ -50,7 +51,6 @@ async def analyse_screen():
             screen_text = "(No readable text found on screen)"
 
         # Step 3: AI analysis
-        from app.models.schemas import ChatMessage
         prompt = (
             f"The following text was extracted from my screen via OCR:\n\n"
             f"---\n{screen_text[:3000]}\n---\n\n"

@@ -21,6 +21,7 @@ import re
 import json
 import time
 import subprocess
+import webbrowser
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -79,6 +80,26 @@ APP_PATH_MAP: Dict[str, str] = {
     # Tools
     "git":            r"C:\Program Files\Git\git-bash.exe",
     "postman":        r"C:\Users\%USERNAME%\AppData\Local\Postman\app-\Postman.exe",
+    "whatsapp":       r"explorer shell:AppsFolder\5319275A.WhatsAppDesktop_cv1g1gvanyjgm!App",
+}
+
+# ── Website URL map ─────────────────────────────────────────────────────────
+# Maps friendly names → actual URLs
+SITE_MAP: Dict[str, str] = {
+    "youtube":        "https://www.youtube.com",
+    "google":         "https://www.google.com",
+    "gmail":          "https://mail.google.com",
+    "chatgpt":        "https://chat.openai.com",
+    "github":         "https://github.com",
+    "stackoverflow":  "https://stackoverflow.com",
+    "reddit":         "https://www.reddit.com",
+    "twitter":        "https://twitter.com",
+    "x":              "https://x.com",
+    "instagram":      "https://www.instagram.com",
+    "linkedin":       "https://www.linkedin.com",
+    "facebook":       "https://www.facebook.com",
+    "amazon":         "https://www.amazon.com",
+    "netflix":        "https://www.netflix.com",
 }
 
 
@@ -97,7 +118,18 @@ def open_app(action: Dict[str, Any]) -> Dict[str, Any]:
     logger.info("▶ open_app: target=%r", target)
 
     try:
-        # Lookup in map, else try the name directly as an executable
+        # 1. Check if it's a known website
+        if target in SITE_MAP:
+            logger.info("  Target found in SITE_MAP – redirecting to open_url")
+            return open_url({"action": "open_url", "target": SITE_MAP[target]})
+
+        # 2. Check if it looks like a URL (heuristic)
+        if target.startswith(("http://", "https://")) or \
+           (re.search(r"\.[a-z]{2,3}(/|$)", target) and " " not in target):
+            logger.info("  Target looks like a URL – redirecting to open_url")
+            return open_url({"action": "open_url", "target": target})
+
+        # 3. Lookup in app map, else try the name directly as an executable
         raw_path = APP_PATH_MAP.get(target, target + ".exe")
         exe_path = _resolve_path(raw_path)
 
@@ -123,6 +155,48 @@ def open_app(action: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as exc:
         logger.error("  ✗ open_app unexpected error: %s", exc)
         return {"success": False, "action": "open_app", "error": str(exc)}
+
+
+def open_url(action: Dict[str, Any]) -> Dict[str, Any]:
+    """Open a URL in the default web browser."""
+    url = str(action.get("target", action.get("value", ""))).strip()
+    logger.info("▶ open_url: target=%r", url)
+
+    if not url:
+        return {"success": False, "action": "open_url", "error": "No URL provided"}
+
+    # Add protocol if missing
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+
+    try:
+        webbrowser.open(url)
+        msg = f"Opened URL: {url}"
+        logger.info("  ✓ %s", msg)
+        return {"success": True, "action": "open_url", "message": msg}
+    except Exception as exc:
+        logger.error("  ✗ open_url error: %s", exc)
+        return {"success": False, "action": "open_url", "error": str(exc)}
+
+
+def search_youtube(action: Dict[str, Any]) -> Dict[str, Any]:
+    import urllib.parse
+    import webbrowser
+    query = action.get("query", action.get("value", action.get("target", "")))
+    logger.info("▶ search_youtube: query=%r", query)
+    
+    if not query:
+        return {"success": False, "action": "search_youtube", "error": "No search query provided"}
+        
+    url = "https://www.youtube.com/results?search_query=" + urllib.parse.quote(query)
+    try:
+        webbrowser.open(url)
+        msg = f"Opened YouTube search for: {query}"
+        logger.info("  ✓ %s", msg)
+        return {"success": True, "action": "search_youtube", "message": msg}
+    except Exception as exc:
+        logger.error("  ✗ search_youtube error: %s", exc)
+        return {"success": False, "action": "search_youtube", "error": str(exc)}
 
 
 def type_text(action: Dict[str, Any]) -> Dict[str, Any]:
@@ -295,7 +369,7 @@ def send_whatsapp_message(action: Dict[str, Any]) -> Dict[str, Any]:
         return {"success": False, "action": "send_whatsapp_message", "error": "'value' (message text) is required."}
 
     try:
-        from automation.whatsapp_automation import send_whatsapp_message as _wa_send
+        from automation.whatsapp_desktop_automation import send_whatsapp_message as _wa_send
         result = _wa_send(contact, message)
         ok = result.get("status") == "success"
         return {
@@ -328,12 +402,12 @@ def read_whatsapp(action: Dict[str, Any]) -> Dict[str, Any]:
         return {"success": False, "action": "read_whatsapp", "error": "'target' (contact name) is required."}
 
     try:
-        from automation.whatsapp_automation import read_whatsapp as _wa_read
+        from automation.whatsapp_desktop_automation import read_whatsapp as _wa_read
         result = _wa_read(contact, count)
         return {
-            "success": True,
+            "success": result.get("status") == "success",
             "action": "read_whatsapp",
-            "message": f"Read {result.get('count', 0)} messages from '{contact}'",
+            "message": result.get("error") if result.get("status") == "error" else f"Read {result.get('count', 0)} messages from '{contact}'",
             **result,
         }
     except Exception as exc:
@@ -365,6 +439,8 @@ def unknown_action(action: Dict[str, Any]) -> Dict[str, Any]:
 # ── Action router ─────────────────────────────────────────────────────────────
 _ACTION_MAP = {
     "open_app":               open_app,
+    "open_url":               open_url,
+    "search_youtube":         search_youtube,
     "type_text":              type_text,
     "press_key":              press_key,
     "mouse_click":            mouse_click,

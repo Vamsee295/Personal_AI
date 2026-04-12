@@ -62,6 +62,7 @@ def generate_spoken_response(action: dict, result: dict) -> str:
 
     responses = {
         "open_app":              f"Done, I've opened {target or 'the application'} for you.",
+        "open_url":              f"Done, I've opened {target or 'the website'} in your browser.",
         "type_text":             f"Done, I've typed that for you.",
         "press_key":             f"Done, I pressed {value or target}.",
         "mouse_click":           f"Done, I clicked at the target location.",
@@ -123,7 +124,7 @@ class VoiceAgent:
 
         # Speak welcome in background (non-blocking)
         from voice.voice_output import speak_async
-        speak_async("Ultron is ready. Say Hey Ultron to start.")
+        speak_async("Ultron is online. Say Hello Ultron to wake me.")
 
         # Start wake word listener
         try:
@@ -172,7 +173,7 @@ class VoiceAgent:
             from voice.voice_input import listen_and_transcribe
 
             # Acknowledge
-            speak("Yes?")
+            speak("Hey Sir, how can I help you?")
             time.sleep(0.3)  # small gap before recording
 
             # Record command
@@ -293,7 +294,7 @@ You are an AI agent that converts voice commands into structured JSON for a Wind
 RULES:
 1. Respond with ONLY a single valid JSON object.
 2. JSON must have exactly: action, target, value, x (int), y (int).
-3. Actions: open_app, type_text, press_key, mouse_click, take_screenshot, move_mouse, scroll, send_whatsapp_message, read_whatsapp
+3. Actions: open_app, open_url, type_text, press_key, mouse_click, take_screenshot, move_mouse, scroll, send_whatsapp_message, read_whatsapp
 
 {memory_context}
 Now respond to the voice command with ONLY the JSON:"""

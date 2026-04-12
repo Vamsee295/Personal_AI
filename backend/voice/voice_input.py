@@ -52,6 +52,7 @@ _CHUNK_SIZE    = 1024     # pyaudio chunk size
 
 # ── Default wake words ────────────────────────────────────────────────────────
 DEFAULT_WAKE_WORDS: List[str] = [
+    "hello ultron",
     "hey ultron",
     "ultron",
     "hey agent",
@@ -112,50 +113,59 @@ def _load_whisper(model_size: str = "base"):
 
 def record_audio(duration: float = 5.0, sample_rate: int = _SAMPLE_RATE) -> Optional[bytes]:
     """
-    Record audio from the default microphone for `duration` seconds.
-
-    Uses pyaudio to open the system default input device and collect raw PCM
-    frames. Returns the audio as WAV-format bytes suitable for faster-whisper.
-
-    Args:
-        duration    : Recording length in seconds.
-        sample_rate : Sample rate in Hz (must be 16000 for Whisper).
-
-    Returns:
-        WAV bytes, or None if microphone is unavailable.
+    Record audio with multi-layer fallback logic for Windows hardware errors.
+    
+    1. Tries default device at 16kHz
+    2. Tries Microsoft Sound Mapper (ID 0) fallback
+    3. Tries alternate sample rates (44.1kHz, 48kHz)
     """
     try:
         import pyaudio
     except ImportError:
-        logger.error("pyaudio not installed. Run: pip install pyaudio")
-        print("[VoiceInput] ERROR: pyaudio not installed.")
+        logger.error("pyaudio not installed.")
         return None
 
-    pa = None
+    pa = pyaudio.PyAudio()
     stream = None
+    
+    # Negotiation parameters
+    rates_to_try = [sample_rate, 44100, 48000]
+    # We found ID 0 is often Sound Mapper which is more resilient
+    devices_to_try = [None, 0] # None = default
+    
+    success = False
+    actual_rate = sample_rate
+
+    for dev_idx in devices_to_try:
+        if success: break
+        forrate in rates_to_try:
+            try:
+                stream = pa.open(
+                    format=pyaudio.paInt16,
+                    channels=_CHANNELS,
+                    rate=forrate,
+                    input=True,
+                    input_device_index=dev_idx,
+                    frames_per_buffer=_CHUNK_SIZE,
+                )
+                actual_rate = forrate
+                success = True
+                if dev_idx is not None or forrate != sample_rate:
+                    logger.info("Recording fallback success: Device=%s, Rate=%d", dev_idx, forrate)
+                break
+            except Exception as e:
+                # logger.debug("Failed opening mic (dev=%s, rate=%d): %s", dev_idx, forrate, e)
+                continue
+
+    if not success:
+        logger.error("All audio input attempts failed (including fallbacks). Check mic privacy settings.")
+        pa.terminate()
+        return None
+
     try:
-        pa = pyaudio.PyAudio()
-
-        # Verify a default input device exists
-        try:
-            pa.get_default_input_device_info()
-        except OSError:
-            logger.error("No microphone found. Check your audio devices.")
-            print("[VoiceInput] ERROR: No microphone detected.")
-            return None
-
-        print("[VoiceInput] Listening...", flush=True)
-
-        stream = pa.open(
-            format=pyaudio.paInt16,
-            channels=_CHANNELS,
-            rate=sample_rate,
-            input=True,
-            frames_per_buffer=_CHUNK_SIZE,
-        )
-
+        print(f"[VoiceInput] Listening ({actual_rate}Hz)...", flush=True)
         frames = []
-        num_chunks = int(sample_rate / _CHUNK_SIZE * duration)
+        num_chunks = int(actual_rate / _CHUNK_SIZE * duration)
         for _ in range(num_chunks):
             data = stream.read(_CHUNK_SIZE, exception_on_overflow=False)
             frames.append(data)
@@ -164,17 +174,20 @@ def record_audio(duration: float = 5.0, sample_rate: int = _SAMPLE_RATE) -> Opti
         stream.close()
         pa.terminate()
 
-        print("[VoiceInput] Processing...", flush=True)
-
-        # Pack frames into an in-memory WAV file
+        # Pack into WAV
         wav_buf = io.BytesIO()
         with wave.open(wav_buf, "wb") as wf:
             wf.setnchannels(_CHANNELS)
             wf.setsampwidth(_SAMPLE_WIDTH)
-            wf.setframerate(sample_rate)
+            wf.setframerate(actual_rate)
             wf.writeframes(b"".join(frames))
-
         return wav_buf.getvalue()
+
+    except Exception as exc:
+        logger.error("Recording runtime error: %s", exc)
+        if stream: stream.close()
+        pa.terminate()
+        return None
 
     except Exception as exc:
         logger.error("record_audio error: %s", exc)
@@ -350,42 +363,57 @@ def continuous_listen(
             import pyaudio
 
             pa = pyaudio.PyAudio()
-            try:
-                pa.get_default_input_device_info()
-            except OSError:
-                logger.error("No microphone -- continuous_listen aborting.")
-                _listening = False
-                pa.terminate()
-                break
+            stream = None
+            
+            # Negotiation for continuous loop
+            success = False
+            actual_rate = _SAMPLE_RATE
+            for dev_idx in [None, 0]:
+                if success: break
+                for forrate in [_SAMPLE_RATE, 44100]:
+                    try:
+                        stream = pa.open(
+                            format=pyaudio.paInt16,
+                            channels=_CHANNELS,
+                            rate=forrate,
+                            input=True,
+                            input_device_index=dev_idx,
+                            frames_per_buffer=_CHUNK_SIZE,
+                        )
+                        actual_rate = forrate
+                        success = True
+                        break
+                    except: continue
 
-            stream = pa.open(
-                format=pyaudio.paInt16,
-                channels=_CHANNELS,
-                rate=_SAMPLE_RATE,
-                input=True,
-                frames_per_buffer=_CHUNK_SIZE,
-            )
+            if not success:
+                logger.error("Continuous listen failed to open mic. Retrying in 5s...")
+                pa.terminate()
+                time.sleep(5)
+                continue
 
             frames = []
-            num_chunks = int(_SAMPLE_RATE / _CHUNK_SIZE * chunk_duration)
+            num_chunks = int(actual_rate / _CHUNK_SIZE * chunk_duration)
             for _ in range(num_chunks):
                 if not _listening:
                     break
-                data = stream.read(_CHUNK_SIZE, exception_on_overflow=False)
-                frames.append(data)
+                try:
+                    data = stream.read(_CHUNK_SIZE, exception_on_overflow=False)
+                    frames.append(data)
+                except Exception as e:
+                    logger.warning("Stream read error: %s", e)
+                    break
 
             stream.stop_stream()
             stream.close()
             pa.terminate()
 
-            if not _listening:
-                break
+            if not _listening or len(frames) == 0:
+                continue
 
             raw = b"".join(frames)
             energy = _audio_energy(raw)
 
             if energy < silence_threshold:
-                # Silent chunk -- skip transcription to save CPU
                 continue
 
             # Active speech -- package into WAV and transcribe
@@ -393,7 +421,7 @@ def continuous_listen(
             with wave.open(wav_buf, "wb") as wf:
                 wf.setnchannels(_CHANNELS)
                 wf.setsampwidth(_SAMPLE_WIDTH)
-                wf.setframerate(_SAMPLE_RATE)
+                wf.setframerate(actual_rate)
                 wf.writeframes(raw)
 
             text = transcribe_audio(wav_buf.getvalue(), model_size)

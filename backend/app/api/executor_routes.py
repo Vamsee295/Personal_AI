@@ -47,67 +47,56 @@ class ExecuteResponse(BaseModel):
 # ── System prompt (JSON-enforced, few-shot) ───────────────────────────────────
 
 _EXECUTOR_SYSTEM_PROMPT = """\
-You are an AI agent that converts natural language instructions into structured JSON commands for a Windows automation system. 
+You are an AI agent controller. Convert the user command into a single JSON action.
 
-CRITICAL RULES:
-1. You MUST respond with ONLY a single valid JSON object — no prose, no markdown, no ```json fences.
-2. The JSON must have exactly these keys:
-   - "action"  : one of [open_app, type_text, press_key, mouse_click, take_screenshot, move_mouse, scroll, send_whatsapp_message, read_whatsapp]
-   - "target"  : the app name, text to type, key name, contact name, or direction (string)
-   - "value"   : extra detail such as button type, key combo, scroll amount, message text, or count (string)
-   - "x"       : screen x-coordinate as integer (0 if not applicable)
-   - "y"       : screen y-coordinate as integer (0 if not applicable)
-3. Do NOT add any extra keys or explanatory text outside the JSON.
+STRICT RULES:
+- Respond with ONLY a valid JSON object. No prose, no markdown fences.
+- NEVER guess. If the command is unclear or too short, return {"action": "none"}.
+- If the command has fewer than 3 meaningful words, return {"action": "none"}.
+- If user says "play" or "search" with youtube → use "search_youtube" and extract the query.
 
-ACTION REFERENCE:
-  open_app               → opens an application; target = app name (e.g. "notepad", "chrome", "calculator")
-  type_text              → types text on keyboard; value = text to type
-  press_key              → presses key/combo; value = "ctrl+c", "alt+tab", "win+d", "enter", "f5"
-  mouse_click            → clicks at coordinates; x,y = pixel coords; value = "left"/"right"/"middle"
-  take_screenshot        → captures the screen; no additional fields needed
-  move_mouse             → moves mouse to x,y; value = duration in seconds (e.g. "0.4")
-  scroll                 → scrolls; value = "up", "down", or integer (positive=up, negative=down)
-  send_whatsapp_message  → sends a WhatsApp message; target = contact name, value = message text
-  read_whatsapp          → reads recent messages; target = contact name, value = count (e.g. "5")
+ACTIONS:
+  open_app               → {"action":"open_app","target":"app_name"}
+  open_url               → {"action":"open_url","target":"https://url"}
+  search_youtube         → {"action":"search_youtube","query":"search term"}
+  type_text              → {"action":"type_text","value":"text"}
+  press_key              → {"action":"press_key","value":"ctrl+c"}
+  take_screenshot        → {"action":"take_screenshot"}
+  scroll                 → {"action":"scroll","value":"up|down"}
+  send_whatsapp_message  → {"action":"send_whatsapp_message","target":"contact","value":"message"}
+  none                   → {"action":"none"} (unclear command)
 
-FEW-SHOT EXAMPLES (input → JSON output):
+EXAMPLES:
+Input: play varanasi teaser in youtube
+Output: {"action":"search_youtube","query":"varanasi teaser"}
 
-User: "Open Notepad"
-{"action": "open_app", "target": "notepad", "value": "", "x": 0, "y": 0}
+Input: open vs code
+Output: {"action":"open_app","target":"vscode"}
 
-User: "Type Hello World"
-{"action": "type_text", "target": "", "value": "Hello World", "x": 0, "y": 0}
+Input: take a screenshot
+Output: {"action":"take_screenshot"}
 
-User: "Press Ctrl+C"
-{"action": "press_key", "target": "", "value": "ctrl+c", "x": 0, "y": 0}
+Input: open google
+Output: {"action":"open_url","target":"https://www.google.com"}
 
-User: "Click at the top-left corner"
-{"action": "mouse_click", "target": "", "value": "left", "x": 10, "y": 10}
+Input: you
+Output: {"action":"none"}
 
-User: "Take a screenshot"
-{"action": "take_screenshot", "target": "", "value": "", "x": 0, "y": 0}
-
-User: "Move the mouse to the center of the screen"
-{"action": "move_mouse", "target": "", "value": "0.5", "x": 960, "y": 540}
-
-User: "Scroll down on the page"
-{"action": "scroll", "target": "", "value": "down", "x": 0, "y": 0}
-
-User: "Open Google Chrome"
-{"action": "open_app", "target": "chrome", "value": "", "x": 0, "y": 0}
-
-User: "Open calculator"
-{"action": "open_app", "target": "calculator", "value": "", "x": 0, "y": 0}
-
-User: "Show the desktop"
-{"action": "press_key", "target": "", "value": "win+d", "x": 0, "y": 0}
-
-User: "Send good morning to Ravi on WhatsApp"
-{"action": "send_whatsapp_message", "target": "Ravi", "value": "Good morning!", "x": 0, "y": 0}
+Input: hmm
+Output: {"action":"none"}
 
 {memory_context}
-Now respond to the user's instruction below with ONLY the JSON object:
-"""
+Command: """
+
+
+def fallback_parser(command: str) -> dict | None:
+    cmd = command.lower()
+    if "youtube" in cmd and ("play" in cmd or "search" in cmd):
+        query = cmd.replace("play", "").replace("search", "") \
+                   .replace("on youtube", "").replace("in youtube", "") \
+                   .replace("youtube", "").strip()
+        return {"action": "search_youtube", "query": query}
+    return None
 
 
 def _extract_json(text: str) -> dict:
@@ -205,7 +194,23 @@ async def execute_command(req: ExecuteRequest):
             },
         )
 
+    # fallback if LLM gives wrong result
+    if action_dict.get("action") == "open_url" and "youtube" in command.lower():
+        fallback = fallback_parser(command)
+        if fallback:
+            action_dict.update(fallback)
+
     logger.info("Parsed action: %s", json.dumps(action_dict))
+
+    # ── Safety: reject 'none' actions (LLM admitted it doesn't understand) ────
+    if action_dict.get("action") == "none":
+        logger.warning("LLM returned 'none' for command: %r — not executing", command)
+        return ExecuteResponse(
+            command=command,
+            parsed_action=action_dict,
+            result={"success": False, "action": "none", "message": "Command not understood."},
+            raw_llm_response=raw_response,
+        )
 
     # ── Step 3: Execute the action (in thread to avoid blocking event loop) ────
     result = await asyncio.to_thread(execute_action, action_dict)
