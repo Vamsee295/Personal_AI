@@ -57,6 +57,25 @@ class BrowserAgent:
             logger.error("Failed to get page content: %s", e)
             return {"success": False, "error": str(e)}
 
+    async def get_page_state(self) -> Dict[str, Any]:
+        """Get the current URL, page title, and visible content."""
+        try:
+            await self._ensure_started()
+            url = self._page.url
+            title = await self._page.title()
+            text = await self._page.evaluate("document.body.innerText")
+            text = text[:10000] if text else ""
+
+            return {
+                "success": True,
+                "url": url,
+                "title": title,
+                "content": text
+            }
+        except Exception as e:
+            logger.error("Failed to get page state: %s", e)
+            return {"success": False, "error": str(e)}
+
     async def click_element(self, selector: str) -> Dict[str, Any]:
         """Click on a specific element by CSS or text selector."""
         try:

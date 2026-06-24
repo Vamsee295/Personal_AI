@@ -31,7 +31,7 @@ async def run_autonomous_loop():
     # Keeping track of what it saw last to avoid spamming the same thought
     last_context = ""
     
-    # Memory for multi-step execution (last 5 actions)
+    # Memory for multi-step execution (last 20 actions)
     action_history = []
 
     while True:
@@ -43,10 +43,19 @@ async def run_autonomous_loop():
             screen_text = await asyncio.to_thread(screen_agent.extract_text)
             
             from automation.browser_agent import browser_agent
-            browser_res = await browser_agent.get_page_content()
+            browser_res = await browser_agent.get_page_state()
+
+            browser_url = browser_res.get("url", "None")
+            browser_title = browser_res.get("title", "None")
             browser_text = browser_res.get("content", "")
 
-            combined_context = f"SCREEN OCR:\n{screen_text}\n\nBROWSER CONTENT:\n{browser_text}"
+            combined_context = (
+                f"SCREEN OCR:\n{screen_text}\n\n"
+                f"BROWSER STATE:\n"
+                f"URL: {browser_url}\n"
+                f"Title: {browser_title}\n"
+                f"Content:\n{browser_text}"
+            )
 
             # Simple deduplication so it doesn't think about the exact same screen endlessly
             if combined_context == last_context:
@@ -72,8 +81,8 @@ async def run_autonomous_loop():
                     "action": action_plan.get("action"),
                     "result": str(result)
                 })
-                # Keep only the last 5
-                if len(action_history) > 5:
+                # Keep only the last 20
+                if len(action_history) > 20:
                     action_history.pop(0)
             else:
                 logger.debug("No text detected on screen or browser.")
