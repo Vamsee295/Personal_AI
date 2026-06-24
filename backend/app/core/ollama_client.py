@@ -123,12 +123,15 @@ class OllamaClient:
     # ─────────────────────────────────────────────────────────────
     async def chat(
         self,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         model: str = settings.DEFAULT_MODEL,
         stream: bool = False,
-    ) -> str:
-        """Send a chat (multi-turn) request and return the assistant reply."""
+        tools: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
+        """Send a chat (multi-turn) request and return the assistant reply, including tool calls."""
         payload = {"model": model, "messages": messages, "stream": stream}
+        if tools:
+            payload["tools"] = tools
 
         async with aiohttp.ClientSession() as session:
             async with session.post(
@@ -138,7 +141,8 @@ class OllamaClient:
             ) as resp:
                 resp.raise_for_status()
                 data = await resp.json()
-                return data.get("message", {}).get("content", "")
+                # Return the entire message object so tool_calls can be inspected
+                return data.get("message", {})
 
     async def chat_stream(
         self,

@@ -50,8 +50,9 @@ class AIService:
         message: str,
         history: List[ChatMessage],
         model: Optional[str] = None,
-    ) -> str:
-        """Single-turn chat with conversation history."""
+        tools: Optional[list] = None,
+    ) -> str | dict:
+        """Single-turn chat with conversation history. Returns str if no tools, or dict if tools used."""
         model = model or settings.DEFAULT_MODEL
 
         messages = [{"role": "system", "content": _CHAT_SYSTEM}]
@@ -59,9 +60,12 @@ class AIService:
             messages.append({"role": h.role, "content": h.content})
         messages.append({"role": "user", "content": message})
 
-        response = await ollama.chat(messages=messages, model=model)
-        logger.debug("Chat response len=%d", len(response))
-        return response
+        response = await ollama.chat(messages=messages, model=model, tools=tools)
+
+        if tools and response.get("tool_calls"):
+            return response
+
+        return response.get("content", "")
 
     async def chat_stream(
         self,

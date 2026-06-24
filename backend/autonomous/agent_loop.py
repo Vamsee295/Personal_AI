@@ -21,9 +21,9 @@ logger = get_logger("agent_loop")
 async def run_autonomous_loop():
     """
     Infinite loop:
-      1. Observe screen (OCR)
-      2. Think (LLM decides what's needed)
-      3. Plan (Maps thought to discrete action)
+      1. Observe screen (OCR / Browser Page Content)
+      2. Think (LLM decides what's needed, passing history)
+      3. Plan (Maps tool call to discrete action)
       4. Execute (Runs action)
     """
     logger.info("🚀 Starting Autonomous Agent Loop...")
@@ -31,23 +31,42 @@ async def run_autonomous_loop():
     # Keeping track of what it saw last to avoid spamming the same thought
     last_context = ""
     
+    # Memory for multi-step execution (last 20 actions)
+    action_history = []
+
     while True:
         try:
-            # 1. Observe (Read screen)
-            logger.debug("Observing screen...")
-            # We run OCR in a thread to not block standard asyncio execution
+            # 1. Observe (Read screen / Browser)
+            logger.debug("Observing screen and browser...")
+
+            # Combine generic screen text with browser DOM text
             screen_text = await asyncio.to_thread(screen_agent.extract_text)
             
+            from automation.browser_agent import browser_agent
+            browser_res = await browser_agent.get_page_state()
+
+            browser_url = browser_res.get("url", "None")
+            browser_title = browser_res.get("title", "None")
+            browser_text = browser_res.get("content", "")
+
+            combined_context = (
+                f"SCREEN OCR:\n{screen_text}\n\n"
+                f"BROWSER STATE:\n"
+                f"URL: {browser_url}\n"
+                f"Title: {browser_title}\n"
+                f"Content:\n{browser_text}"
+            )
+
             # Simple deduplication so it doesn't think about the exact same screen endlessly
-            if screen_text == last_context:
+            if combined_context == last_context:
                 await asyncio.sleep(5)
                 continue
                 
-            last_context = screen_text
+            last_context = combined_context
 
-            if screen_text.strip():
-                # 2. Think
-                ai_thought = await think(screen_text)
+            if combined_context.strip():
+                # 2. Think (passing history)
+                ai_thought = await think(combined_context, action_history=action_history)
                 
                 # 3. Plan
                 action_plan = plan(ai_thought)
@@ -56,8 +75,17 @@ async def run_autonomous_loop():
                 result = await execute_plan(action_plan)
                 
                 logger.info("Agent Step Complete | Plan: %s | Result: %s", action_plan.get('action'), result)
+
+                # Update History
+                action_history.append({
+                    "action": action_plan.get("action"),
+                    "result": str(result)
+                })
+                # Keep only the last 20
+                if len(action_history) > 20:
+                    action_history.pop(0)
             else:
-                logger.debug("No text detected on screen.")
+                logger.debug("No text detected on screen or browser.")
                 
         except Exception as e:
             logger.error("Agent Loop Error: %s", e)

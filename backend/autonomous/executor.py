@@ -25,40 +25,80 @@ async def execute_plan(plan: Dict[str, Any]) -> str:
             from app.system.app_control import open_vscode
             result = open_vscode()
             return f"Opened VS Code: {result.get('success')}"
-            
         elif app_name == "chrome":
             from app.system.app_control import open_browser
             result = open_browser("https://google.com")
             return f"Opened Chrome: {result.get('success')}"
-            
         else:
             from app.system.app_control import open_app as open_generic_app
             result = open_generic_app(app_name)
             return f"Opened {app_name}: {result.get('success')}"
 
-    elif action == "organize_files":
-        target = args.get("target")
-        if target == "downloads":
-            # Just an example path. A real system might use pathlib Path.home() / "Downloads"
-            import os
-            downloads_dir = os.path.expanduser("~/Downloads")
-            from app.agents.file_agent import file_agent
-            actions = file_agent.organise(downloads_dir, dry_run=False)
-            return f"Organized {len(actions)} files in Downloads."
-        return "Target directory not recognized."
+    # --- New Browser Agent Tools ---
+    elif action == "navigate_browser":
+        url = args.get("url")
+        from automation.browser_agent import browser_agent
+        res = await browser_agent.goto_url(url)
+        return res.get("message") or res.get("error")
 
-    elif action == "explain_error":
-        context = args.get("context", "")
-        # Here we could format and log this, or send to a UI websocket.
-        # For a headless agent, logging the AI's explanation is typically what it does.
-        logger.info("Agent Error Explanation:\n%s", context)
-        return "Explained error in logs."
+    elif action == "browser_click":
+        selector = args.get("selector")
+        from automation.browser_agent import browser_agent
+        res = await browser_agent.click_element(selector)
+        return res.get("message") or res.get("error")
+
+    elif action == "browser_fill":
+        selector = args.get("selector")
+        text = args.get("text")
+        from automation.browser_agent import browser_agent
+        res = await browser_agent.fill_input(selector, text)
+        return res.get("message") or res.get("error")
+
+    elif action == "browser_read":
+        from automation.browser_agent import browser_agent
+        res = await browser_agent.get_page_content()
+        return res.get("content") or res.get("error")
+
+    elif action == "take_screenshot":
+        from automation.browser_agent import browser_agent
+        res = await browser_agent.screenshot()
+        return res.get("message") or res.get("error")
+
+    # --- Job Agent Tools ---
+    elif action == "search_jobs":
+        platform = args.get("platform", "").lower()
+        query = args.get("query", "")
+        location = args.get("location", "")
+        from app.agents.job_agent import job_agent
+
+        if platform == "linkedin":
+            res = await job_agent.search_linkedin_jobs(query, location)
+        elif platform == "internshala":
+            res = await job_agent.search_internshala_jobs(query)
+        elif platform == "wellfound":
+            res = await job_agent.search_wellfound_jobs(query)
+        elif platform == "naukri":
+            res = await job_agent.search_naukri_jobs(query)
+        else:
+            return f"Error: Unknown job platform '{platform}'"
+
+        return res.get("message") or res.get("error")
+
+    elif action == "review_application":
+        job_title = args.get("job_title", "")
+        company = args.get("company", "")
+        fields = args.get("fields", {})
+        from app.agents.job_agent import job_agent
+
+        res = await job_agent.review_application(job_title, company, fields)
+        return res.get("message") or res.get("error")
+    # -------------------------------
 
     elif action == "log_thought":
         thought = args.get("thought", "")
         logger.info("Agent generic thought:\n%s", thought)
-        return "Logged thought."
+        return f"Logged thought: {thought}"
 
     else:
         logger.warning("Unknown action in plan: %s", action)
-        return "Unknown action."
+        return f"Unknown action: {action}"
