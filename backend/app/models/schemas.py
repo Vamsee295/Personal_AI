@@ -154,8 +154,10 @@ class JobResult(BaseModel):
     company: str
     location: str
     salary: str
-    url: str
+    skills: List[str] = []
     source: str
+    url: str
+    discovered_at: Optional[str] = None
 
 
 # ══════════════════════════════════════════════════════════════════

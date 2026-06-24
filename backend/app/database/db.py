@@ -73,8 +73,24 @@ CREATE TABLE IF NOT EXISTS job_search_history (
     company     TEXT,
     location    TEXT,
     salary      TEXT,
+    skills      TEXT,
     url         TEXT,
     source      TEXT,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+CREATE_SAVED_JOBS = """
+CREATE TABLE IF NOT EXISTS saved_jobs (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    title       TEXT NOT NULL,
+    company     TEXT,
+    location    TEXT,
+    salary      TEXT,
+    skills      TEXT,
+    url         TEXT,
+    source      TEXT,
+    score       REAL DEFAULT 0.0,
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 """
@@ -99,6 +115,7 @@ async def init_db() -> None:
         await db.execute(CREATE_ACTIVITY)
         await db.execute(CREATE_FILES_HISTORY)
         await db.execute(CREATE_JOB_SEARCH_HISTORY)
+        await db.execute(CREATE_SAVED_JOBS)
         await db.execute(CREATE_JOB_APPLICATION_HISTORY)
         await db.commit()
     logger.info("Database initialised at %s", DB_PATH.resolve())
@@ -173,11 +190,24 @@ async def log_activity(action: str, details: str = "") -> None:
 #  Job Agent helpers
 # ══════════════════════════════════════════════════════════════════
 
-async def log_job_search(title: str, company: str, location: str, salary: str, url: str, source: str) -> int:
+import json
+
+async def log_job_search(title: str, company: str, location: str, salary: str, skills: list[str], url: str, source: str) -> int:
     async with aiosqlite.connect(DB_PATH) as db:
+        skills_str = json.dumps(skills)
         cursor = await db.execute(
-            "INSERT INTO job_search_history (title, company, location, salary, url, source) VALUES (?, ?, ?, ?, ?, ?)",
-            (title, company, location, salary, url, source),
+            "INSERT INTO job_search_history (title, company, location, salary, skills, url, source) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (title, company, location, salary, skills_str, url, source),
+        )
+        await db.commit()
+        return cursor.lastrowid
+
+async def save_job(title: str, company: str, location: str, salary: str, skills: list[str], url: str, source: str, score: float = 0.0) -> int:
+    async with aiosqlite.connect(DB_PATH) as db:
+        skills_str = json.dumps(skills)
+        cursor = await db.execute(
+            "INSERT INTO saved_jobs (title, company, location, salary, skills, url, source, score) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (title, company, location, salary, skills_str, url, source, score),
         )
         await db.commit()
         return cursor.lastrowid

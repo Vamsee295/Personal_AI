@@ -66,7 +66,7 @@ class JobAgent:
 
         jobs = await self._extract_jobs_from_page(source="LinkedIn")
         for j in jobs:
-            await log_job_search(j.title, j.company, j.location, j.salary, j.url, j.source)
+            await log_job_search(j.title, j.company, j.location, j.salary, j.skills, j.url, j.source)
 
         return {"success": True, "source": "LinkedIn", "jobs_found": len(jobs), "message": f"Found {len(jobs)} jobs on LinkedIn."}
 
@@ -82,7 +82,7 @@ class JobAgent:
 
         jobs = await self._extract_jobs_from_page(source="Internshala")
         for j in jobs:
-            await log_job_search(j.title, j.company, j.location, j.salary, j.url, j.source)
+            await log_job_search(j.title, j.company, j.location, j.salary, j.skills, j.url, j.source)
 
         return {"success": True, "source": "Internshala", "jobs_found": len(jobs), "message": f"Found {len(jobs)} internships on Internshala."}
 
@@ -98,7 +98,7 @@ class JobAgent:
 
         jobs = await self._extract_jobs_from_page(source="Wellfound")
         for j in jobs:
-            await log_job_search(j.title, j.company, j.location, j.salary, j.url, j.source)
+            await log_job_search(j.title, j.company, j.location, j.salary, j.skills, j.url, j.source)
 
         return {"success": True, "source": "Wellfound", "jobs_found": len(jobs), "message": f"Found {len(jobs)} jobs on Wellfound."}
 
@@ -114,7 +114,7 @@ class JobAgent:
 
         jobs = await self._extract_jobs_from_page(source="Naukri")
         for j in jobs:
-            await log_job_search(j.title, j.company, j.location, j.salary, j.url, j.source)
+            await log_job_search(j.title, j.company, j.location, j.salary, j.skills, j.url, j.source)
 
         return {"success": True, "source": "Naukri", "jobs_found": len(jobs), "message": f"Found {len(jobs)} jobs on Naukri."}
 

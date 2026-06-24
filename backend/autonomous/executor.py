@@ -119,6 +119,32 @@ async def execute_plan(plan: Dict[str, Any]) -> str:
         return res.get("message") or res.get("error")
     # -------------------------------
 
+    elif action == "score_job":
+        from app.models.schemas import JobResult
+        from app.services.job_scoring import job_scorer
+        from app.database.db import save_job
+
+        # Create a transient JobResult from args
+        job = JobResult(
+            title=args.get("title", "Unknown"),
+            company=args.get("company", "Unknown"),
+            location=args.get("location", "Unknown"),
+            salary=args.get("salary", "Unknown"),
+            skills=args.get("skills", []),
+            url=args.get("url", ""),
+            source=args.get("source", "Unknown")
+        )
+
+        res = await job_scorer.score_job(job)
+        if res.get("success"):
+            score = res.get("score", 0.0)
+            reasoning = res.get("reasoning", "")
+            # Save it to database if it's a good match (e.g., > 6.0)
+            if score > 6.0:
+                 await save_job(job.title, job.company, job.location, job.salary, job.skills, job.url, job.source, score)
+            return f"Scored job {job.title} at {score}/10.0. Reasoning: {reasoning}"
+        return res.get("error")
+
     elif action == "log_thought":
         thought = args.get("thought", "")
         logger.info("Agent generic thought:\n%s", thought)

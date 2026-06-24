@@ -165,6 +165,27 @@ TOOLS_SCHEMA = [
                 "required": ["action_type"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "score_job",
+            "description": "Score a job based on the user's resume and profile.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "Job title."},
+                    "company": {"type": "string", "description": "Company name."},
+                    "location": {"type": "string", "description": "Job location."},
+                    "skills": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Required skills for the job."
+                    }
+                },
+                "required": ["title", "company"]
+            }
+        }
     }
 ]
 
