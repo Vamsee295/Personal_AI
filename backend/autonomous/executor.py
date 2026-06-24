@@ -35,26 +35,32 @@ async def execute_plan(plan: Dict[str, Any]) -> str:
             return f"Opened {app_name}: {result.get('success')}"
 
     # --- New Browser Agent Tools ---
-    elif action == "navigate_browser":
+    elif action == "search_web":
+        query = args.get("query")
+        from automation.browser_agent import browser_agent
+        res = await browser_agent.search_web(query)
+        return res.get("message") or res.get("error")
+
+    elif action == "open_page":
         url = args.get("url")
         from automation.browser_agent import browser_agent
         res = await browser_agent.goto_url(url)
         return res.get("message") or res.get("error")
 
-    elif action == "browser_click":
+    elif action == "click_element":
         selector = args.get("selector")
         from automation.browser_agent import browser_agent
         res = await browser_agent.click_element(selector)
         return res.get("message") or res.get("error")
 
-    elif action == "browser_fill":
+    elif action == "fill_form":
         selector = args.get("selector")
         text = args.get("text")
         from automation.browser_agent import browser_agent
         res = await browser_agent.fill_input(selector, text)
         return res.get("message") or res.get("error")
 
-    elif action == "browser_read":
+    elif action == "extract_page":
         from automation.browser_agent import browser_agent
         res = await browser_agent.get_page_content()
         return res.get("content") or res.get("error")
@@ -91,6 +97,25 @@ async def execute_plan(plan: Dict[str, Any]) -> str:
         from app.agents.job_agent import job_agent
 
         res = await job_agent.review_application(job_title, company, fields)
+        return res.get("message") or res.get("error")
+
+    # --- YouTube Agent Tools ---
+    elif action == "youtube_action":
+        action_type = args.get("action_type")
+        query = args.get("query", "")
+        from app.agents.youtube_agent import youtube_agent
+
+        if action_type == "search":
+            res = await youtube_agent.search_youtube(query)
+        elif action_type == "open_video":
+            res = await youtube_agent.open_video(query)
+        elif action_type == "play":
+            res = await youtube_agent.play_video()
+        elif action_type == "open_playlist":
+            res = await youtube_agent.open_playlist(query)
+        else:
+            return f"Error: Unknown YouTube action '{action_type}'"
+
         return res.get("message") or res.get("error")
     # -------------------------------
 

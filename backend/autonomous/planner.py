@@ -27,7 +27,21 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
-            "name": "navigate_browser",
+            "name": "search_web",
+            "description": "Search the internet for a query.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "The search query."}
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "open_page",
             "description": "Navigate to a specific URL in the browser.",
             "parameters": {
                 "type": "object",
@@ -41,7 +55,7 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
-            "name": "browser_click",
+            "name": "click_element",
             "description": "Click an element on the current webpage.",
             "parameters": {
                 "type": "object",
@@ -55,7 +69,7 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
-            "name": "browser_fill",
+            "name": "fill_form",
             "description": "Fill a text input on the current webpage.",
             "parameters": {
                 "type": "object",
@@ -70,7 +84,7 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
-            "name": "browser_read",
+            "name": "extract_page",
             "description": "Get the text content of the current webpage.",
             "parameters": {
                 "type": "object",
@@ -134,6 +148,21 @@ TOOLS_SCHEMA = [
                     "fields": {"type": "object", "description": "Key-value pairs of the fields filled out in the application."}
                 },
                 "required": ["job_title", "company", "fields"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "youtube_action",
+            "description": "Perform an action on YouTube.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action_type": {"type": "string", "enum": ["search", "open_video", "play", "open_playlist"], "description": "The action to perform on YouTube."},
+                    "query": {"type": "string", "description": "The search query or URL/ID to open."}
+                },
+                "required": ["action_type"]
             }
         }
     }

@@ -32,6 +32,19 @@ class BrowserAgent:
                 self._context = await self._browser.new_context(viewport={"width": 1280, "height": 720})
                 self._page = await self._context.new_page()
 
+    async def search_web(self, query: str) -> Dict[str, Any]:
+        """Search the web using DuckDuckGo (or generic search engine)."""
+        try:
+            await self._ensure_started()
+            import urllib.parse
+            encoded_query = urllib.parse.quote_plus(query)
+            url = f"https://duckduckgo.com/?q={encoded_query}"
+            await self._page.goto(url, wait_until="networkidle")
+            return {"success": True, "message": f"Searched web for '{query}'"}
+        except Exception as e:
+            logger.error("Failed to search web: %s", e)
+            return {"success": False, "error": str(e)}
+
     async def goto_url(self, url: str) -> Dict[str, Any]:
         """Navigate to a URL."""
         try:

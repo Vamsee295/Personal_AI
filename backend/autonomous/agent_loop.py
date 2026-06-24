@@ -84,13 +84,19 @@ async def run_autonomous_loop():
                 # Keep only the last 20
                 if len(action_history) > 20:
                     action_history.pop(0)
+
+                # Immediately replan if the agent performed an actionable task
+                if action_plan.get("action") not in ["none", "log_thought"]:
+                    logger.debug("Action performed. Looping immediately for next observation.")
+                    continue
+
             else:
                 logger.debug("No text detected on screen or browser.")
                 
         except Exception as e:
             logger.error("Agent Loop Error: %s", e)
             
-        # Wait 5 seconds before next cycle
+        # Wait 5 seconds before next cycle (if nothing actionable happened)
         await asyncio.sleep(5)
 
 if __name__ == "__main__":
