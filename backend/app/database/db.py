@@ -107,6 +107,16 @@ CREATE TABLE IF NOT EXISTS job_application_history (
 );
 """
 
+CREATE_PENDING_APPLICATIONS = """
+CREATE TABLE IF NOT EXISTS pending_applications (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    company     TEXT NOT NULL,
+    role        TEXT NOT NULL,
+    status      TEXT DEFAULT 'prepared', -- prepared | approved | submitted | failed
+    timestamp   DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
 async def init_db() -> None:
     """Create all tables if they do not exist."""
     async with aiosqlite.connect(DB_PATH) as db:
@@ -117,6 +127,7 @@ async def init_db() -> None:
         await db.execute(CREATE_JOB_SEARCH_HISTORY)
         await db.execute(CREATE_SAVED_JOBS)
         await db.execute(CREATE_JOB_APPLICATION_HISTORY)
+        await db.execute(CREATE_PENDING_APPLICATIONS)
         await db.commit()
     logger.info("Database initialised at %s", DB_PATH.resolve())
 
@@ -133,6 +144,23 @@ async def create_task(title: str, description: str = "", priority: int = 3) -> i
         )
         await db.commit()
         return cursor.lastrowid
+
+async def create_pending_application(company: str, role: str, status: str = 'prepared') -> int:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "INSERT INTO pending_applications (company, role, status) VALUES (?, ?, ?)",
+            (company, role, status),
+        )
+        await db.commit()
+        return cursor.lastrowid
+
+async def update_pending_application_status(app_id: int, status: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE pending_applications SET status = ?, timestamp = CURRENT_TIMESTAMP WHERE id = ?",
+            (status, app_id),
+        )
+        await db.commit()
 
 
 async def list_tasks(status: str | None = None) -> list[dict]:

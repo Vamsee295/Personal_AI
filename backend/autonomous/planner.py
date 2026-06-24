@@ -138,16 +138,20 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
-            "name": "review_application",
-            "description": "Review the job application and request user confirmation before final submission.",
+            "name": "application_action",
+            "description": "Perform an action related to filling out and reviewing a job application.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "job_title": {"type": "string", "description": "The title of the job being applied for."},
-                    "company": {"type": "string", "description": "The company name."},
-                    "fields": {"type": "object", "description": "Key-value pairs of the fields filled out in the application."}
+                    "action_type": {"type": "string", "enum": ["open", "upload_resume", "get_details", "review"], "description": "The application action to perform."},
+                    "url": {"type": "string", "description": "The URL to open (if action_type is 'open')."},
+                    "selector": {"type": "string", "description": "The file input selector (if action_type is 'upload_resume')."},
+                    "company": {"type": "string", "description": "Company name (if action_type is 'review')."},
+                    "role": {"type": "string", "description": "Role name (if action_type is 'review')."},
+                    "fields_filled": {"type": "object", "description": "Key-value pairs of filled fields (if action_type is 'review')."},
+                    "missing_fields": {"type": "array", "items": {"type": "string"}, "description": "List of missing fields (if action_type is 'review')."}
                 },
-                "required": ["job_title", "company", "fields"]
+                "required": ["action_type"]
             }
         }
     },

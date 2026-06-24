@@ -90,13 +90,28 @@ async def execute_plan(plan: Dict[str, Any]) -> str:
 
         return res.get("message") or res.get("error")
 
-    elif action == "review_application":
-        job_title = args.get("job_title", "")
-        company = args.get("company", "")
-        fields = args.get("fields", {})
-        from app.agents.job_agent import job_agent
+    # --- Application Agent Tools ---
+    elif action == "application_action":
+        action_type = args.get("action_type")
+        from app.agents.application_agent import application_agent
 
-        res = await job_agent.review_application(job_title, company, fields)
+        if action_type == "open":
+            res = await application_agent.open_application(args.get("url", ""))
+        elif action_type == "upload_resume":
+            res = await application_agent.upload_resume(args.get("selector", ""))
+        elif action_type == "get_details":
+            res = await application_agent.fill_personal_details()
+            return str(res.get("details", res.get("error")))
+        elif action_type == "review":
+            res = await application_agent.review_application(
+                company=args.get("company", ""),
+                role=args.get("role", ""),
+                fields_filled=args.get("fields_filled", {}),
+                missing_fields=args.get("missing_fields", [])
+            )
+        else:
+            return f"Error: Unknown application action '{action_type}'"
+
         return res.get("message") or res.get("error")
 
     # --- YouTube Agent Tools ---
