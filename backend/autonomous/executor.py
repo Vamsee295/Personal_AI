@@ -63,6 +63,35 @@ async def execute_plan(plan: Dict[str, Any]) -> str:
         from automation.browser_agent import browser_agent
         res = await browser_agent.screenshot()
         return res.get("message") or res.get("error")
+
+    # --- Job Agent Tools ---
+    elif action == "search_jobs":
+        platform = args.get("platform", "").lower()
+        query = args.get("query", "")
+        location = args.get("location", "")
+        from app.agents.job_agent import job_agent
+
+        if platform == "linkedin":
+            res = await job_agent.search_linkedin_jobs(query, location)
+        elif platform == "internshala":
+            res = await job_agent.search_internshala_jobs(query)
+        elif platform == "wellfound":
+            res = await job_agent.search_wellfound_jobs(query)
+        elif platform == "naukri":
+            res = await job_agent.search_naukri_jobs(query)
+        else:
+            return f"Error: Unknown job platform '{platform}'"
+
+        return res.get("message") or res.get("error")
+
+    elif action == "review_application":
+        job_title = args.get("job_title", "")
+        company = args.get("company", "")
+        fields = args.get("fields", {})
+        from app.agents.job_agent import job_agent
+
+        res = await job_agent.review_application(job_title, company, fields)
+        return res.get("message") or res.get("error")
     # -------------------------------
 
     elif action == "log_thought":

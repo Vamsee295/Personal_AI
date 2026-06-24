@@ -104,6 +104,38 @@ TOOLS_SCHEMA = [
                 "required": ["thought"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_jobs",
+            "description": "Search for jobs on specific platforms.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "platform": {"type": "string", "enum": ["linkedin", "internshala", "wellfound", "naukri"], "description": "The job board to search on."},
+                    "query": {"type": "string", "description": "The job title or keyword to search for."},
+                    "location": {"type": "string", "description": "The location to search in (only used for linkedin currently)."}
+                },
+                "required": ["platform", "query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "review_application",
+            "description": "Review the job application and request user confirmation before final submission.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "job_title": {"type": "string", "description": "The title of the job being applied for."},
+                    "company": {"type": "string", "description": "The company name."},
+                    "fields": {"type": "object", "description": "Key-value pairs of the fields filled out in the application."}
+                },
+                "required": ["job_title", "company", "fields"]
+            }
+        }
     }
 ]
 
