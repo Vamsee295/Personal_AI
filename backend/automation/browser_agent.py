@@ -20,10 +20,13 @@ class BrowserAgent:
         self._browser: Optional[Browser] = None
         self._context: Optional[BrowserContext] = None
         self._page: Optional[Page] = None
-        self._lock = asyncio.Lock()
+        self._lock: Optional[asyncio.Lock] = None
 
     async def _ensure_started(self):
         """Starts Playwright and the browser if not already running."""
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+
         async with self._lock:
             if self._playwright is None:
                 logger.info("Starting Playwright...")

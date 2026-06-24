@@ -18,6 +18,15 @@ from app.utils.logger import get_logger
 
 logger = get_logger("agent_loop")
 
+voice_command_queue = None
+main_event_loop = None
+
+def get_voice_queue():
+    global voice_command_queue
+    if voice_command_queue is None:
+        voice_command_queue = asyncio.Queue()
+    return voice_command_queue
+
 async def run_autonomous_loop():
     """
     Infinite loop:
@@ -26,6 +35,8 @@ async def run_autonomous_loop():
       3. Plan (Maps tool call to discrete action)
       4. Execute (Runs action)
     """
+    global main_event_loop
+    main_event_loop = asyncio.get_running_loop()
     logger.info("🚀 Starting Autonomous Agent Loop...")
     
     # Keeping track of what it saw last to avoid spamming the same thought
@@ -36,6 +47,19 @@ async def run_autonomous_loop():
 
     while True:
         try:
+            queue = get_voice_queue()
+            # Check for direct voice commands injected from the VoiceAgent thread
+            if not queue.empty():
+                voice_command = await queue.get()
+                logger.info(f"Received voice command from queue: {voice_command}")
+
+                from voice.voice_agent import VoiceAgent
+                agent = VoiceAgent.get_instance()
+                # Process the command entirely on the main event loop
+                await agent.process_voice_command(voice_command)
+                queue.task_done()
+                continue
+
             # 1. Observe (Read screen / Browser)
             logger.debug("Observing screen and browser...")
 

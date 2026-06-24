@@ -169,11 +169,12 @@ class VoiceAgent:
             return
 
         try:
-            from voice.voice_output import speak
+            from app.services.voice_manager import voice_manager
             from voice.voice_input import listen_and_transcribe
+            import time
 
             # Acknowledge
-            speak("Hey Sir, how can I help you?")
+            voice_manager.speak("Yes?")
             time.sleep(0.3)  # small gap before recording
 
             # Record command
@@ -182,17 +183,35 @@ class VoiceAgent:
             command_text = listen_and_transcribe(duration=6.0, model_size="base")
 
             if not command_text:
-                speak("Sorry, I didn't catch that. Please try again.")
+                voice_manager.speak("Sorry, I didn't catch that. Please try again.")
                 return
 
             print(f"[VoiceAgent] Command: {command_text}")
-            self.process_voice_command(command_text)
+
+            import asyncio
+            # To avoid crossing thread boundaries with Playwright (which lives on the main event loop),
+            # we send the command to the autonomous loop via a global queue.
+            from autonomous.agent_loop import get_voice_queue
+
+            from autonomous.agent_loop import main_event_loop
+            try:
+                if main_event_loop and main_event_loop.is_running():
+                    queue = get_voice_queue()
+                    main_event_loop.call_soon_threadsafe(queue.put_nowait, command_text)
+                else:
+                    raise RuntimeError("No running main loop found")
+            except RuntimeError:
+                # Fallback if running entirely standalone (no main loop running yet)
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(self.process_voice_command(command_text))
+                loop.close()
 
         except Exception as exc:
             logger.error("on_wake_detected error: %s", exc)
             try:
-                from voice.voice_output import speak
-                speak("Sorry, I had a problem processing that.")
+                from app.services.voice_manager import voice_manager
+                voice_manager.speak("Sorry, I had a problem processing that.")
             except Exception:
                 pass
         finally:
@@ -202,7 +221,7 @@ class VoiceAgent:
     #  COMMAND PIPELINE
     # ─────────────────────────────────────────────────────────────────────────
 
-    def process_voice_command(self, command_text: str) -> dict:
+    async def process_voice_command(self, command_text: str) -> dict:
         """
         Full voice command pipeline:
           1. Build memory context (Step 5 integration)
@@ -226,27 +245,36 @@ class VoiceAgent:
         # ── Step 1: Memory context ────────────────────────────────────────────
         mem_context = ""
         try:
-            from memory.memory_manager import memory
-            mem_context = memory.build_memory_context(command_text)
+            from app.services.memory_manager import memory_manager
+            # Load user memory context implicitly to help guide parsing if necessary
+            # For JARVIS we're primarily relying on the agent_loop context,
+            # but voice commands inject user preferences directly
+            user_prefs = await memory_manager.search_memory()
         except Exception as mem_exc:
             logger.warning("Memory context error (non-fatal): %s", mem_exc)
 
-        # ── Step 2: Ollama call ───────────────────────────────────────────────
+        # ── Step 2: Planner (Ollama tool call) ───────────────────────────────────────────────
         action_dict = {}
-        raw_response = ""
         try:
-            action_dict, raw_response = self._call_ollama(command_text, mem_context)
+            # Reusing the existing async think -> plan -> execute loop from the background
+            from autonomous.brain import think
+            from autonomous.planner import plan
+
+            ai_thought = await think(command_text)
+            action_dict = plan(ai_thought)
+
         except Exception as ollama_exc:
-            logger.error("Ollama call failed: %s", ollama_exc)
+            logger.error("Ollama/Planner call failed: %s", ollama_exc)
             from voice.voice_output import speak
-            speak("Sorry, the AI model is not responding right now.")
+            speak("Sorry, I could not process that command right now.")
             return {"success": False, "error": str(ollama_exc)}
 
         # ── Step 3: Execute action ────────────────────────────────────────────
         result = {}
         try:
-            from app.services.action_executor import execute_action
-            result = execute_action(action_dict)
+            from autonomous.executor import execute_plan
+            res_str = await execute_plan(action_dict)
+            result = {"success": True, "message": res_str}
         except Exception as exec_exc:
             logger.error("Action execution failed: %s", exec_exc)
             result = {"success": False, "error": str(exec_exc)}
@@ -255,26 +283,10 @@ class VoiceAgent:
         spoken_text = generate_spoken_response(action_dict, result)
         print(f"[VoiceAgent] Speaking: {spoken_text}")
         try:
-            from voice.voice_output import speak_async
-            speak_async(spoken_text)
+            from app.services.voice_manager import voice_manager
+            voice_manager.speak(spoken_text)
         except Exception as tts_exc:
             logger.warning("TTS failed (non-fatal): %s", tts_exc)
-
-        # ── Step 5: Save to memory ────────────────────────────────────────────
-        duration_ms = int((_time.time() - t_start) * 1000)
-        try:
-            from memory.memory_manager import memory
-            result_str = result.get("message") or result.get("error") or str(result)
-            memory.save_command(
-                user_input=command_text,
-                action_taken=action_dict,
-                result=result_str,
-                success=bool(result.get("success", False)),
-                duration_ms=duration_ms,
-            )
-            memory.extract_and_save_preferences(command_text, action_dict)
-        except Exception as mem_exc:
-            logger.warning("Memory save failed (non-fatal): %s", mem_exc)
 
         return {
             "success": bool(result.get("success", False)),

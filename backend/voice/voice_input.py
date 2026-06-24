@@ -52,11 +52,11 @@ _CHUNK_SIZE    = 1024     # pyaudio chunk size
 
 # ── Default wake words ────────────────────────────────────────────────────────
 DEFAULT_WAKE_WORDS: List[str] = [
-    "hello ultron",
-    "hey ultron",
-    "ultron",
+    "hey jarvis",
+    "jarvis",
+    "hello jarvis",
     "hey agent",
-    "wake up ultron",
+    "wake up jarvis",
     "computer",
 ]
 
@@ -138,23 +138,23 @@ def record_audio(duration: float = 5.0, sample_rate: int = _SAMPLE_RATE) -> Opti
 
     for dev_idx in devices_to_try:
         if success: break
-        forrate in rates_to_try:
+        for rate in rates_to_try:
             try:
                 stream = pa.open(
                     format=pyaudio.paInt16,
                     channels=_CHANNELS,
-                    rate=forrate,
+                    rate=rate,
                     input=True,
                     input_device_index=dev_idx,
                     frames_per_buffer=_CHUNK_SIZE,
                 )
-                actual_rate = forrate
+                actual_rate = rate
                 success = True
-                if dev_idx is not None or forrate != sample_rate:
-                    logger.info("Recording fallback success: Device=%s, Rate=%d", dev_idx, forrate)
+                if dev_idx is not None or rate != sample_rate:
+                    logger.info("Recording fallback success: Device=%s, Rate=%d", dev_idx, rate)
                 break
             except Exception as e:
-                # logger.debug("Failed opening mic (dev=%s, rate=%d): %s", dev_idx, forrate, e)
+                # logger.debug("Failed opening mic (dev=%s, rate=%d): %s", dev_idx, rate, e)
                 continue
 
     if not success:
