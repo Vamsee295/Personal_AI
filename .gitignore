@@ -43,3 +43,18 @@ ENV/
 # OS
 Thumbs.db
 Desktop.ini
+
+# Python
+.ipynb_checkpoints/
+*.log
+ultron.db
+ultron.db-journal
+
+# Project specific
+screenshots/
+backend/screenshots/
+backend/logs/
+
+# IDEs
+.vscode/
+.idea/

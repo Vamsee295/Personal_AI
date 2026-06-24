@@ -64,9 +64,16 @@ class Settings(BaseSettings):
     # Manual path to tesseract.exe (e.g., "C:/Program Files/Tesseract-OCR/tesseract.exe")
     TESSERACT_PATH: Optional[str] = None
 
+    # ── External APIs (Secrets) ──────────────────────────────────
+    OPENAI_API_KEY: Optional[str] = None
+    GOOGLE_API_KEY: Optional[str] = None
+
     # ── Voice ────────────────────────────────────────────────────
     PICOVOICE_ACCESS_KEY: Optional[str] = None
     WAKE_WORD_PPN: Optional[str] = None
+
+    # ── Testing ──────────────────────────────────────────────────
+    WHATSAPP_TEST_CONTACT: str = "Test"
 
 
 # Singleton instance - import this everywhere.

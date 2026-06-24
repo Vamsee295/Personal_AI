@@ -25,8 +25,10 @@ if sys.platform == "win32":
 # Add backend/ to path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from app.config import settings
+
 # ─── CONFIGURE THESE BEFORE RUNNING ──────────────────────────────────────────
-CONTACT_NAME = "Test"           # Change to a real WhatsApp contact name
+CONTACT_NAME = settings.WHATSAPP_TEST_CONTACT
 TEST_MESSAGE = "Hello from Vamsee AI! This is an automated test message."
 # ─────────────────────────────────────────────────────────────────────────────
 

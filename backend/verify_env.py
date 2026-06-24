@@ -29,8 +29,10 @@ try:
 except ImportError:
     print("❌ Pillow (PIL) MISSING")
 
-tess_path = r"V:\Installations\tesseract.exe"
-if os.path.exists(tess_path):
+from app.config import settings
+
+tess_path = settings.TESSERACT_PATH or r"V:\Installations\tesseract.exe"
+if tess_path and os.path.exists(tess_path):
     print(f"✅ Tesseract Binary found at: {tess_path}")
     pytesseract.pytesseract.tesseract_cmd = tess_path
     try:
