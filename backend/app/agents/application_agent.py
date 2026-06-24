@@ -101,6 +101,9 @@ class ApplicationAgent:
         # Log to DB
         await create_pending_application(company=company, role=role, status="prepared")
 
+        from app.database.db import log_job_history
+        await log_job_history(company=company, role=role, status="prepared")
+
         return {"success": True, "message": review_msg}
 
 application_agent = ApplicationAgent()

@@ -163,6 +163,11 @@ async def execute_plan(plan: Dict[str, Any]) -> str:
     elif action == "log_thought":
         thought = args.get("thought", "")
         logger.info("Agent generic thought:\n%s", thought)
+
+        # Log to long term task history
+        from app.database.db import log_task_history
+        await log_task_history(task="Agent generic thought", result=thought)
+
         return f"Logged thought: {thought}"
 
     else:

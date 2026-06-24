@@ -10,16 +10,25 @@ logger = get_logger("brain")
 from typing import Any, List, Dict
 from autonomous.planner import TOOLS_SCHEMA
 
+from app.services.memory_manager import memory_manager
+import json
+
 async def think(context: str, action_history: List[Dict[str, str]] = None, model: str = "qwen2.5-coder:7b") -> Any:
     """
     Given environmental context and action history, ask the AI to decide
-    what action it should take using native tool calling.
+    what action it should take using native tool calling. Integrates long term memory.
     """
     logger.info("Brain is thinking about the current context...")
     
+    # 1. Fetch long-term context from Memory Manager
+    user_profile = memory_manager.load_user_profile()
+    user_prefs = await memory_manager.search_memory()
+    job_history = await memory_manager.get_recent_job_history(limit=5)
+    task_history = await memory_manager.get_recent_task_history(limit=5)
+
     history_str = ""
     if action_history:
-        history_str = "\nRecent actions:\n"
+        history_str = "\nRecent actions (Short-term context):\n"
         for act in action_history:
             history_str += f"- Action: {act.get('action')} | Result: {act.get('result')}\n"
 
@@ -27,7 +36,13 @@ async def think(context: str, action_history: List[Dict[str, str]] = None, model
     You are JARVIS, an autonomous browser and desktop assistant.
 
     You must accomplish tasks by calling the provided tools.
-    You can navigate the browser, click elements, read the page, and fill inputs.
+    You can navigate the browser, click elements, read the page, fill inputs, search for jobs, and prepare applications.
+
+    [LONG TERM MEMORY]
+    User Profile: {json.dumps(user_profile)}
+    User Preferences: {json.dumps(user_prefs)}
+    Recent Job Applications: {json.dumps(job_history)}
+    Recent Past Tasks: {json.dumps(task_history)}
 
     {history_str}
 

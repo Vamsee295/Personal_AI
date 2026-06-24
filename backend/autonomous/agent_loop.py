@@ -99,6 +99,14 @@ async def run_autonomous_loop():
         # Wait 5 seconds before next cycle (if nothing actionable happened)
         await asyncio.sleep(5)
 
+        # Periodically trigger preference learning (if history is populated)
+        try:
+            if len(action_history) > 5 and len(action_history) % 5 == 0:
+                from app.services.memory_manager import memory_manager
+                await memory_manager.learn_preferences(action_history)
+        except Exception as e:
+            logger.error("Preference Learning Error: %s", e)
+
 if __name__ == "__main__":
     try:
         asyncio.run(run_autonomous_loop())

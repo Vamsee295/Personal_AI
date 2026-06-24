@@ -117,6 +117,33 @@ CREATE TABLE IF NOT EXISTS pending_applications (
 );
 """
 
+CREATE_USER_PREFERENCES = """
+CREATE TABLE IF NOT EXISTS user_preferences (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    key         TEXT UNIQUE NOT NULL,
+    value       TEXT NOT NULL
+);
+"""
+
+CREATE_JOB_HISTORY = """
+CREATE TABLE IF NOT EXISTS job_history (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    company     TEXT NOT NULL,
+    role        TEXT NOT NULL,
+    status      TEXT NOT NULL,
+    timestamp   DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+CREATE_TASK_HISTORY = """
+CREATE TABLE IF NOT EXISTS task_history (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    task        TEXT NOT NULL,
+    result      TEXT NOT NULL,
+    timestamp   DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
 async def init_db() -> None:
     """Create all tables if they do not exist."""
     async with aiosqlite.connect(DB_PATH) as db:
@@ -128,6 +155,9 @@ async def init_db() -> None:
         await db.execute(CREATE_SAVED_JOBS)
         await db.execute(CREATE_JOB_APPLICATION_HISTORY)
         await db.execute(CREATE_PENDING_APPLICATIONS)
+        await db.execute(CREATE_USER_PREFERENCES)
+        await db.execute(CREATE_JOB_HISTORY)
+        await db.execute(CREATE_TASK_HISTORY)
         await db.commit()
     logger.info("Database initialised at %s", DB_PATH.resolve())
 
@@ -159,6 +189,22 @@ async def update_pending_application_status(app_id: int, status: str) -> None:
         await db.execute(
             "UPDATE pending_applications SET status = ?, timestamp = CURRENT_TIMESTAMP WHERE id = ?",
             (status, app_id),
+        )
+        await db.commit()
+
+async def log_job_history(company: str, role: str, status: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO job_history (company, role, status) VALUES (?, ?, ?)",
+            (company, role, status),
+        )
+        await db.commit()
+
+async def log_task_history(task: str, result: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO task_history (task, result) VALUES (?, ?)",
+            (task, result),
         )
         await db.commit()
 
