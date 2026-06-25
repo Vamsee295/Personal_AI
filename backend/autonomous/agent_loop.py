@@ -11,21 +11,27 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.agents.screen_agent import screen_agent
-from autonomous.brain import think
+from autonomous.brain import think, brain_manager
 from autonomous.planner import plan
 from autonomous.executor import execute_plan
 from app.utils.logger import get_logger
+from app.events.stream import event_stream
+import uuid
 
 logger = get_logger("agent_loop")
 
-voice_command_queue = None
+orchestrator_queue = None
 main_event_loop = None
 
+def get_orchestrator_queue():
+    global orchestrator_queue
+    if orchestrator_queue is None:
+        orchestrator_queue = asyncio.Queue()
+    return orchestrator_queue
+
+# Alias for backward compatibility if any modules rely on voice_command_queue name temporarily
 def get_voice_queue():
-    global voice_command_queue
-    if voice_command_queue is None:
-        voice_command_queue = asyncio.Queue()
-    return voice_command_queue
+    return get_orchestrator_queue()
 
 async def run_autonomous_loop():
     """
@@ -46,34 +52,58 @@ async def run_autonomous_loop():
     # Keeping track of what it saw last to avoid spamming the same thought
     last_context = ""
     
-    # Memory for multi-step execution (last 20 actions)
-    action_history = []
-    
     from app.utils.performance import performance_monitor
     import time
-    from app.database.db import load_task_checkpoint
     
-    # Recovery Task Evaluation
-    # Note: Normally you'd want the UI or prompt to determine which task to resume. 
-    # For now, we seed history if there's a hardcoded recent task, but realistically
-    # JARVIS will rely on `task_history` DB fed into `brain.py` context to naturally pick up.
-    
+    # Optional fallback/default task if none is active
+    current_task_id = None
+    error_feedback = None
+
     while True:
         try:
             loop_start = time.time()
-            queue = get_voice_queue()
-            # Check for direct voice commands injected from the VoiceAgent thread
+            queue = get_orchestrator_queue()
+
+            # Check for new commands from the API or Voice
             if not queue.empty():
-                voice_command = await queue.get()
-                logger.info(f"Received voice command from queue: {voice_command}")
+                item = await queue.get()
                 
-                from voice.voice_agent import VoiceAgent
-                agent = VoiceAgent.get_instance()
-                # Process the command entirely on the main event loop
-                await agent.process_voice_command(voice_command)
-                queue.task_done()
+                if isinstance(item, dict) and "command" in item:
+                    command = item["command"]
+                    task_id = item.get("task_id", str(uuid.uuid4()))
+                    source = item.get("source", "unknown")
+                    logger.info(f"Received new command from {source}: {command}")
+
+                    # Create new context in Brain
+                    brain_manager.create_context(task_id, command)
+                    current_task_id = task_id
+                    error_feedback = None
+                    queue.task_done()
+
+                    # Immediately loop to start executing this new task
+                    continue
+                else:
+                    # Backward compatibility for direct string commands from voice
+                    voice_command = item
+                    task_id = str(uuid.uuid4())
+                    logger.info(f"Received legacy voice command: {voice_command}")
+                    brain_manager.create_context(task_id, voice_command)
+                    current_task_id = task_id
+                    error_feedback = None
+                    queue.task_done()
+                    continue
+
+            # If there's no active task, just wait
+            if not current_task_id:
+                await asyncio.sleep(2)
                 continue
                 
+            ctx = brain_manager.get_context(current_task_id)
+            if not ctx or ctx.is_completed:
+                logger.info(f"Task {current_task_id} completed or not found. Waiting for new tasks.")
+                current_task_id = None
+                continue
+
             # 1. Observe (Read screen / Browser)
             logger.debug("Observing screen and browser...")
             
@@ -95,61 +125,117 @@ async def run_autonomous_loop():
                 f"Content:\n{browser_text}"
             )
             
-            # Simple deduplication so it doesn't think about the exact same screen endlessly
-            if combined_context == last_context:
-                await asyncio.sleep(5)
-                continue
-                
-            last_context = combined_context
-
             if combined_context.strip():
-                # 2. Think (passing history)
-                ai_thought = await think(combined_context, action_history=action_history)
+                # Emit observation event
+                await event_stream.emit("observation_received", {"task_id": current_task_id, "url": browser_url})
+
+                # 2. Think (passing history via context inside brain)
+                ai_thought = await think(current_task_id, combined_context, error_feedback=error_feedback)
                 
                 # 3. Plan
                 plan_start = time.time()
                 action_plan = plan(ai_thought)
                 performance_monitor.log_metric("planning_times_ms", (time.time() - plan_start) * 1000)
                 
+                action = action_plan.get("action")
+
+                # Stop condition: The LLM returned 'task_completed' or 'task_failed'
+                if action in ["task_completed", "task_failed"]:
+                    ctx.is_completed = True
+                    msg = action_plan.get("args", {}).get("summary", "Task ended.")
+                    logger.info(f"Task {current_task_id} ended: {msg}")
+                    await event_stream.emit(action, {"task_id": current_task_id, "message": msg})
+
+                    # Notify voice agent if this was a voice command
+                    try:
+                        from voice.voice_agent import VoiceAgent
+                        agent = VoiceAgent.get_instance()
+                        if agent and hasattr(agent, 'on_task_completed'):
+                            agent.on_task_completed(current_task_id, success=(action == "task_completed"), message=msg)
+                    except Exception as e:
+                        pass
+
+                    current_task_id = None
+                    continue
+
+                if action != "none":
+                    await event_stream.emit("tool_selected", {"task_id": current_task_id, "tool": action, "args": action_plan.get("args")})
+
                 # 4. Execute
                 exec_start = time.time()
-                result = await execute_plan(action_plan)
+
+                try:
+                    await event_stream.emit("tool_started", {"task_id": current_task_id, "tool": action})
+                    result = await execute_plan(action_plan)
+                    success = True
+                    if isinstance(result, dict) and result.get("error"):
+                        success = False
+                    elif "error" in str(result).lower() or "failed" in str(result).lower():
+                        success = False
+                except Exception as e:
+                    result = str(e)
+                    success = False
+
                 performance_monitor.log_metric("tool_execution_times_ms", (time.time() - exec_start) * 1000)
                 
-                logger.info("Agent Step Complete | Plan: %s | Result: %s", action_plan.get('action'), result)
-                
-                # Trigger report generation occasionally
-                if len(action_history) > 0 and len(action_history) % 10 == 0:
-                    performance_monitor.generate_report()
+                logger.info("Agent Step Complete | Plan: %s | Result: %s", action, result)
+                await event_stream.emit("tool_finished", {"task_id": current_task_id, "tool": action, "result": str(result), "success": success})
                 
                 # Update History
-                action_history.append({
-                    "action": action_plan.get("action"),
-                    "result": str(result)
-                })
-                # Keep only the last 20
-                if len(action_history) > 20:
-                    action_history.pop(0)
+                ctx.log_action(action, result, success)
+
+                # Feedback loop logic
+                if not success:
+                    error_feedback = str(result)
+                    ctx.retry_count += 1
+
+                    if ctx.retry_count > ctx.max_retries:
+                        logger.error(f"Task {current_task_id} failed after {ctx.max_retries} retries.")
+                        await event_stream.emit("task_failed", {"task_id": current_task_id, "error": "Max retries exceeded."})
+                        ctx.is_completed = True
+
+                        try:
+                            from voice.voice_agent import VoiceAgent
+                            agent = VoiceAgent.get_instance()
+                            if agent and hasattr(agent, 'on_task_completed'):
+                                agent.on_task_completed(current_task_id, success=False, message="Max retries exceeded.")
+                        except Exception as e:
+                            pass
+
+                        current_task_id = None
+                        error_feedback = None
+                    else:
+                        logger.warning(f"Task {current_task_id} action failed. Re-planning (retry {ctx.retry_count}/{ctx.max_retries})")
+                        await event_stream.emit("replanning_started", {"task_id": current_task_id, "reason": error_feedback})
+                else:
+                    # Reset retries and error feedback on success
+                    error_feedback = None
+                    ctx.retry_count = 0
+
+                # Trigger report generation occasionally
+                if len(ctx.action_history) > 0 and len(ctx.action_history) % 10 == 0:
+                    performance_monitor.generate_report()
 
                 # Immediately replan if the agent performed an actionable task
-                if action_plan.get("action") not in ["none", "log_thought"]:
+                if action not in ["none", "log_thought"]:
                     logger.debug("Action performed. Looping immediately for next observation.")
                     continue
 
             else:
                 logger.debug("No text detected on screen or browser.")
+                await asyncio.sleep(2)
                 
         except Exception as e:
             logger.error("Agent Loop Error: %s", e)
+            await asyncio.sleep(5)
             
-        # Wait 5 seconds before next cycle (if nothing actionable happened)
-        await asyncio.sleep(5)
-        
         # Periodically trigger preference learning (if history is populated)
         try:
-            if len(action_history) > 5 and len(action_history) % 5 == 0:
-                from app.services.memory_manager import memory_manager
-                await memory_manager.learn_preferences(action_history)
+            if current_task_id:
+                ctx = brain_manager.get_context(current_task_id)
+                if ctx and len(ctx.action_history) > 5 and len(ctx.action_history) % 5 == 0:
+                    from app.services.memory_manager import memory_manager
+                    await memory_manager.learn_preferences(ctx.action_history)
         except Exception as e:
             logger.error("Preference Learning Error: %s", e)
 

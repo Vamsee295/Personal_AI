@@ -27,6 +27,65 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
+            "name": "type_text",
+            "description": "Type text on the keyboard (e.g., into an active desktop application window).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string", "description": "The text to type."}
+                },
+                "required": ["text"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "press_key",
+            "description": "Press a specific key or key combination on the keyboard.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "combo": {"type": "string", "description": "The key combo to press (e.g. 'enter', 'ctrl+c', 'win+d', 'alt+tab')."}
+                },
+                "required": ["combo"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "mouse_click",
+            "description": "Click the mouse at specific screen coordinates.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "x": {"type": "integer", "description": "X coordinate."},
+                    "y": {"type": "integer", "description": "Y coordinate."},
+                    "button": {"type": "string", "enum": ["left", "right", "middle"], "description": "Which mouse button to click."}
+                },
+                "required": ["x", "y"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "move_mouse",
+            "description": "Move the mouse to specific screen coordinates.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "x": {"type": "integer", "description": "X coordinate."},
+                    "y": {"type": "integer", "description": "Y coordinate."}
+                },
+                "required": ["x", "y"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "search_web",
             "description": "Search the internet for a query.",
             "parameters": {
@@ -97,11 +156,25 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "take_screenshot",
-            "description": "Take a screenshot of the current browser page.",
+            "description": "Take a screenshot of the current screen to analyze it.",
             "parameters": {
                 "type": "object",
                 "properties": {},
                 "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "scroll_desktop",
+            "description": "Scroll the desktop mouse wheel up or down.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "clicks": {"type": "integer", "description": "Number of clicks to scroll. Positive is usually up, negative is down."}
+                },
+                "required": ["clicks"]
             }
         }
     },
@@ -139,17 +212,18 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "application_action",
-            "description": "Perform an action related to filling out and reviewing a job application.",
+            "description": "Perform an action related to filling out, reviewing, and submitting a job application.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "action_type": {"type": "string", "enum": ["open", "upload_resume", "get_details", "review"], "description": "The application action to perform."},
+                    "action_type": {"type": "string", "enum": ["open", "upload_resume", "get_details", "review", "submit"], "description": "The application action to perform."},
                     "url": {"type": "string", "description": "The URL to open (if action_type is 'open')."},
-                    "selector": {"type": "string", "description": "The file input selector (if action_type is 'upload_resume')."},
+                    "selector": {"type": "string", "description": "The selector to use (if action_type is 'upload_resume' or 'submit')."},
                     "company": {"type": "string", "description": "Company name (if action_type is 'review')."},
                     "role": {"type": "string", "description": "Role name (if action_type is 'review')."},
                     "fields_filled": {"type": "object", "description": "Key-value pairs of filled fields (if action_type is 'review')."},
-                    "missing_fields": {"type": "array", "items": {"type": "string"}, "description": "List of missing fields (if action_type is 'review')."}
+                    "missing_fields": {"type": "array", "items": {"type": "string"}, "description": "List of missing fields (if action_type is 'review')."},
+                    "application_id": {"type": "integer", "description": "The application ID to submit (if action_type is 'submit')."}
                 },
                 "required": ["action_type"]
             }
@@ -190,6 +264,21 @@ TOOLS_SCHEMA = [
                 "required": ["title", "company"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "file_action",
+            "description": "Perform intelligent file operations.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action_type": {"type": "string", "enum": ["organise", "undo", "analyze"], "description": "The file action to perform."},
+                    "path": {"type": "string", "description": "The directory to organise or the specific file to analyze."}
+                },
+                "required": ["action_type"]
+            }
+        }
     }
 ]
 
@@ -203,7 +292,7 @@ def get_available_tools() -> list:
         name = tool["function"]["name"]
         
         # Check browser tools
-        if name in ["search_web", "open_page", "click_element", "fill_form", "extract_page", "search_jobs", "application_action", "youtube_action"]:
+        if name in ["search_web", "open_page", "click_element", "fill_form", "extract_page", "search_jobs", "application_action", "youtube_action", "scroll_page", "summarize_page", "download_file"]:
             if health.get("browser", {}).get("available"):
                 available.append(tool)
         # Assuming log_thought and score_job only require Ollama/Memory, which are implicitly checked if this code runs

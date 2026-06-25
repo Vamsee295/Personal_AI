@@ -21,20 +21,49 @@ async def execute_plan(plan: Dict[str, Any]) -> str:
 
     elif action == "open_app":
         app_name = args.get("app_name")
-        if app_name == "code":
-            from app.system.app_control import open_vscode
-            result = open_vscode()
-            return f"Opened VS Code: {result.get('success')}"
-        elif app_name == "chrome":
-            from app.system.app_control import open_browser
-            result = open_browser("https://google.com")
-            return f"Opened Chrome: {result.get('success')}"
-        else:
-            from app.system.app_control import open_app as open_generic_app
-            result = open_generic_app(app_name)
-            return f"Opened {app_name}: {result.get('success')}"
+        from app.services.action_executor import open_app as legacy_open_app
+        result = legacy_open_app({"target": app_name})
+        return f"Opened {app_name}: {result.get('success')}"
 
-    # --- New Browser Agent Tools ---
+    elif action == "type_text":
+        text = args.get("text")
+        from app.services.action_executor import type_text as legacy_type_text
+        result = legacy_type_text({"value": text})
+        return f"Typed text: {result.get('success')}"
+
+    elif action == "press_key":
+        combo = args.get("combo")
+        from app.services.action_executor import press_key as legacy_press_key
+        result = legacy_press_key({"value": combo})
+        return f"Pressed key combo: {result.get('success')}"
+
+    elif action == "mouse_click":
+        x = args.get("x", 0)
+        y = args.get("y", 0)
+        button = args.get("button", "left")
+        from app.services.action_executor import mouse_click as legacy_mouse_click
+        result = legacy_mouse_click({"x": x, "y": y, "value": button})
+        return f"Mouse click: {result.get('success')}"
+
+    elif action == "move_mouse":
+        x = args.get("x", 0)
+        y = args.get("y", 0)
+        from app.services.action_executor import move_mouse as legacy_move_mouse
+        result = legacy_move_mouse({"x": x, "y": y})
+        return f"Mouse move: {result.get('success')}"
+
+    elif action == "scroll_desktop":
+        clicks = args.get("clicks", -1)
+        from app.services.action_executor import scroll as legacy_scroll
+        result = legacy_scroll({"value": clicks})
+        return f"Desktop scroll: {result.get('success')}"
+
+    elif action == "take_screenshot":
+        from app.services.action_executor import take_screenshot as legacy_take_screenshot
+        result = legacy_take_screenshot({})
+        return f"Screenshot taken: {result.get('file_path')}"
+
+    # --- Browser Agent Tools ---
     elif action == "search_web":
         query = args.get("query")
         from automation.browser_agent import browser_agent
@@ -64,11 +93,6 @@ async def execute_plan(plan: Dict[str, Any]) -> str:
         from automation.browser_agent import browser_agent
         res = await browser_agent.get_page_content()
         return res.get("content") or res.get("error")
-
-    elif action == "take_screenshot":
-        from automation.browser_agent import browser_agent
-        res = await browser_agent.screenshot()
-        return res.get("message") or res.get("error")
 
     # --- Job Agent Tools ---
     elif action == "search_jobs":
@@ -109,6 +133,11 @@ async def execute_plan(plan: Dict[str, Any]) -> str:
                 fields_filled=args.get("fields_filled", {}),
                 missing_fields=args.get("missing_fields", [])
             )
+        elif action_type == "submit":
+            # [SAFETY RULE ENFORCED]: Never auto-submit without user input.
+            # We explicitly halt and require the user to manually click the submit button
+            # via a UI prompt or their own physical action, rather than letting the LLM do it unsupervised.
+            return "SAFETY HALT: Auto-submission is blocked. I have prepared the application. Please review it on your screen and click submit yourself if everything looks correct."
         else:
             return f"Error: Unknown application action '{action_type}'"
             
@@ -133,6 +162,26 @@ async def execute_plan(plan: Dict[str, Any]) -> str:
             
         return res.get("message") or res.get("error")
     # -------------------------------
+
+    elif action == "file_action":
+        action_type = args.get("action_type")
+        path = args.get("path")
+        from app.agents.file_agent import file_agent
+
+        if action_type == "organise":
+            if not path:
+                 from pathlib import Path
+                 path = str(Path.home() / "Downloads")
+            res = file_agent.organise(path)
+            return f"Organised files: {len(res)} moved."
+        elif action_type == "undo":
+            res = file_agent.undo_last_organisation()
+            return res.get("message") or res.get("error", "Undo failed")
+        elif action_type == "analyze":
+            res = await file_agent.analyze_file(path)
+            return res.get("summary") or res.get("error", "Analysis failed")
+        else:
+            return f"Unknown file action: {action_type}"
 
     elif action == "score_job":
         from app.models.schemas import JobResult

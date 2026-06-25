@@ -103,11 +103,33 @@ class ApplicationAgent:
         logger.warning(review_msg)
         
         # Log to DB
-        await create_pending_application(company=company, role=role, status="prepared")
+        app_id = await create_pending_application(company=company, role=role, status="prepared")
         
         from app.database.db import log_job_history
         await log_job_history(company=company, role=role, status="prepared")
 
-        return {"success": True, "message": review_msg}
+        return {"success": True, "message": review_msg, "application_id": app_id}
+
+    async def submit_application(self, application_id: int, selector: str) -> Dict[str, Any]:
+        """
+        Actually clicks the submit button after user confirmation.
+        """
+        logger.info(f"Submitting application {application_id} using selector {selector}")
+
+        try:
+            await browser_agent._ensure_started()
+            locator = browser_agent._page.locator(selector).first
+            await locator.wait_for(state="visible", timeout=5000)
+            await locator.click()
+
+            from app.database.db import update_pending_application_status
+            await update_pending_application_status(application_id, "submitted")
+
+            return {"success": True, "message": f"Successfully submitted application {application_id}"}
+        except Exception as e:
+            logger.error("Failed to submit application: %s", e)
+            from app.database.db import update_pending_application_status
+            await update_pending_application_status(application_id, "failed")
+            return {"success": False, "error": str(e)}
 
 application_agent = ApplicationAgent()
