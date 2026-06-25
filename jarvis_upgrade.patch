@@ -1,0 +1,3593 @@
+From 1545d03db7f56620469c92ad0357a99179c9dd0c Mon Sep 17 00:00:00 2001
+From: "google-labs-jules[bot]"
+ <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date: Thu, 25 Jun 2026 05:58:55 +0000
+Subject: [PATCH] feat: Comprehensive JARVIS Agent Upgrade
+
+---
+ AGENT_CAPABILITIES_V1_TESTING.md        |  49 +++++
+ AGENT_RELIABILITY_V1.md                 |  37 ++++
+ APPLICATION_AGENT_V1_TESTING.md         |  36 ++++
+ BROWSER_AGENT_IMPLEMENTATION.md         |  60 ++++++
+ CURRENT_AGENT_ANALYSIS.md               |  56 ++++++
+ FILE_VERIFICATION.md                    |  79 ++++++++
+ JOB_AGENT_PLAN.md                       |  60 ++++++
+ JOB_AGENT_V1_TESTING.md                 |  41 ++++
+ JOB_AGENT_V2_TESTING.md                 |  44 +++++
+ MEMORY_AGENT_V1_TESTING.md              |  50 +++++
+ NEXT_IMPLEMENTATION_PHASE.md            |  36 ++++
+ TECHNICAL_AUDIT.md                      | 192 ++++++++++++++++++
+ VOICE_AGENT_V2_TESTING.md               |  42 ++++
+ backend/app/agents/application_agent.py | 113 +++++++++++
+ backend/app/agents/job_agent.py         | 165 ++++++++++++++++
+ backend/app/agents/resume_analyzer.py   |  70 +++++++
+ backend/app/agents/youtube_agent.py     |  65 ++++++
+ backend/app/core/ollama_client.py       |  12 +-
+ backend/app/database/db.py              | 179 +++++++++++++++++
+ backend/app/main.py                     |   3 +
+ backend/app/models/schemas.py           |  15 ++
+ backend/app/services/ai_service.py      |  19 +-
+ backend/app/services/job_scoring.py     |  88 +++++++++
+ backend/app/services/memory_manager.py  | 119 +++++++++++
+ backend/app/services/tool_health.py     |  46 +++++
+ backend/app/services/voice_manager.py   |  44 +++++
+ backend/app/system/diagnostics.py       |  78 ++++++++
+ backend/app/utils/logger.py             |  30 ++-
+ backend/app/utils/performance.py        |  50 +++++
+ backend/app/utils/retry.py              |  39 ++++
+ backend/automation/browser_agent.py     | 182 +++++++++++++++++
+ backend/autonomous/agent_loop.py        | 114 +++++++++--
+ backend/autonomous/brain.py             |  72 ++++---
+ backend/autonomous/executor.py          | 153 +++++++++++++--
+ backend/autonomous/planner.py           | 251 +++++++++++++++++++++---
+ backend/memory/user_profile.json        |  17 ++
+ backend/requirements.txt                |   4 +
+ backend/voice/voice_agent.py            |  80 ++++----
+ backend/voice/voice_input.py            |  20 +-
+ backend/voice/voice_output.py           | 143 ++++++--------
+ 40 files changed, 2730 insertions(+), 223 deletions(-)
+ create mode 100644 AGENT_CAPABILITIES_V1_TESTING.md
+ create mode 100644 AGENT_RELIABILITY_V1.md
+ create mode 100644 APPLICATION_AGENT_V1_TESTING.md
+ create mode 100644 BROWSER_AGENT_IMPLEMENTATION.md
+ create mode 100644 CURRENT_AGENT_ANALYSIS.md
+ create mode 100644 FILE_VERIFICATION.md
+ create mode 100644 JOB_AGENT_PLAN.md
+ create mode 100644 JOB_AGENT_V1_TESTING.md
+ create mode 100644 JOB_AGENT_V2_TESTING.md
+ create mode 100644 MEMORY_AGENT_V1_TESTING.md
+ create mode 100644 NEXT_IMPLEMENTATION_PHASE.md
+ create mode 100644 TECHNICAL_AUDIT.md
+ create mode 100644 VOICE_AGENT_V2_TESTING.md
+ create mode 100644 backend/app/agents/application_agent.py
+ create mode 100644 backend/app/agents/job_agent.py
+ create mode 100644 backend/app/agents/resume_analyzer.py
+ create mode 100644 backend/app/agents/youtube_agent.py
+ create mode 100644 backend/app/services/job_scoring.py
+ create mode 100644 backend/app/services/memory_manager.py
+ create mode 100644 backend/app/services/tool_health.py
+ create mode 100644 backend/app/services/voice_manager.py
+ create mode 100644 backend/app/system/diagnostics.py
+ create mode 100644 backend/app/utils/performance.py
+ create mode 100644 backend/app/utils/retry.py
+ create mode 100644 backend/automation/browser_agent.py
+ create mode 100644 backend/memory/user_profile.json
+
+diff --git a/AGENT_CAPABILITIES_V1_TESTING.md b/AGENT_CAPABILITIES_V1_TESTING.md
+new file mode 100644
+index 0000000..0ce61b5
+--- /dev/null
++++ b/AGENT_CAPABILITIES_V1_TESTING.md
+@@ -0,0 +1,49 @@
++# AGENT CAPABILITIES V1 TESTING
++
++This document outlines testing for the new generic browser capabilities, the newly added YouTube agent, and the continuous Observe -> Replan loop.
++
++## 1. Observe -> Replan Loop
++**Prompt:**
++> "Find the company 'OpenAI' on Wikipedia, then extract the first paragraph and log it as a thought."
++
++**Expected Behavior:**
++1. The agent calls `search_web` for "OpenAI Wikipedia".
++2. The loop **immediately** restarts (skipping the 5-second sleep) and extracts the DOM content from DuckDuckGo.
++3. The agent calls `click_element` or `open_page` for the Wikipedia link.
++4. The loop immediately restarts, reading the Wikipedia DOM.
++5. The agent calls `log_thought` with the summarized paragraph.
++6. The loop goes dormant (waits 5 seconds) since `log_thought` is a terminal action.
++
++**Failure Cases:**
++- The agent gets stuck in a loop navigating between two pages. (Mitigated by the 20-action history).
++
++## 2. Generic Browser Tools
++**Prompt:**
++> "Search the web for the current weather in London."
++
++**Expected Behavior:**
++1. Agent calls `search_web` with query "current weather in London".
++2. Browser automatically opens DuckDuckGo and fetches the DOM context.
++3. Agent reads the result.
++
++## 3. YouTube Agent
++**Prompt:**
++> "Play some lo-fi hip hop on YouTube."
++
++**Expected Behavior:**
++1. Agent plans `youtube_action` with `action_type: search` and `query: lo-fi hip hop`.
++2. Browser navigates to the YouTube search results.
++3. Observe loop catches the video titles.
++4. Agent plans `youtube_action` with `action_type: open_video` for the top result.
++5. Agent calls `youtube_action` with `action_type: play` to toggle playback (simulating the 'k' keystroke).
++
++**Failure Cases:**
++- YouTube popups or ad blockers interrupt the DOM state. The agent should log an error or use `extract_page` to figure out why the video isn't playing and close the popup via `click_element`.
++
++## 4. Job Search Tool
++**Prompt:**
++> "Look for full-stack developer roles on Wellfound."
++
++**Expected Behavior:**
++1. The agent calls `search_jobs` directly with `platform: wellfound`, `query: full-stack developer`.
++2. The specific Wellfound extraction flow executes and pushes the data to SQLite.
+\ No newline at end of file
+diff --git a/AGENT_RELIABILITY_V1.md b/AGENT_RELIABILITY_V1.md
+new file mode 100644
+index 0000000..1cee9cb
+--- /dev/null
++++ b/AGENT_RELIABILITY_V1.md
+@@ -0,0 +1,37 @@
++# AGENT RELIABILITY V1
++
++This document outlines the features and architectural additions made to improve the stability and observability of the JARVIS agent.
++
++## 1. Tool Health Manager & Startup Diagnostics
++- Added `tool_health.py` to keep track of the health and availability of all core subsystems (database, ollama, browser, voice).
++- Added `diagnostics.py` to verify dependencies on application startup.
++- The agent loop calls `run_startup_diagnostics()` before entering its infinite loop.
++
++## 2. Browser Recovery
++- The `browser_agent.py` was updated with a `recover()` function.
++- If an operation fails, or if a manual closure of the browser is detected (`self._page.is_closed()`), the agent safely tears down the remaining Playwright structures and attempts to recreate the context organically without crashing the main application thread.
++
++## 3. Retry Framework
++- An `@async_retry` decorator was added to `utils/retry.py`.
++- It supports exponential backoff (`initial_backoff`, `max_retries`) and is applied directly to network-sensitive browser operations like `goto_url`, `search_web`, `click_element`, and `fill_input`.
++
++## 4. Persistent Task Checkpoints
++- `app/database/db.py` received a new SQLite table: `task_checkpoints`.
++- Both `job_agent.py` and `application_agent.py` use `save_task_checkpoint` to document exactly what stage they are at (e.g. "searching", "extracting", "opened", "uploading").
++- If the daemon crashes and reboots, this table provides a verifiable trail of what task states were abandoned.
++
++## 5. Structured Logging & Exception Handling
++- `utils/logger.py` was enhanced to write out valid JSON Lines (`backend.jsonl`) via a custom `StructuredJSONFormatter`.
++- This ensures all backend logs include exact timestamps, modules, log levels, and optional metadata like `task_id` or `duration_ms` for indexing.
++
++## 6. Performance Monitoring
++- `utils/performance.py` tracks the elapsed execution time for:
++  - `planning_times_ms`
++  - `tool_execution_times_ms`
++  - `llm_response_times_ms`
++- The system averages these out over a moving window of 1000 items and outputs a lightweight JSON report every 10 execution loops (`logs/performance_report.json`).
++
++## Testing Instructions
++1. Run `python run.py`. You should immediately see the startup diagnostics console logs identifying component availability.
++2. Manually kill the Chromium window while a task is running.
++3. Observe the `backend.jsonl` file to see structured error reports, followed by the Retry Framework catching the exception, and the Browser Agent executing its `recover()` loop to bring the window back up seamlessly.
+\ No newline at end of file
+diff --git a/APPLICATION_AGENT_V1_TESTING.md b/APPLICATION_AGENT_V1_TESTING.md
+new file mode 100644
+index 0000000..bf909e5
+--- /dev/null
++++ b/APPLICATION_AGENT_V1_TESTING.md
+@@ -0,0 +1,36 @@
++# APPLICATION AGENT V1 TESTING
++
++This document outlines the testing workflow for the Application Agent v1 capabilities.
++
++## Overview
++The Application Agent acts as the final step in the job-seeking process. It automates filling forms, uploading resumes, and reviewing applications while strictly avoiding autonomous submission.
++
++## 1. LinkedIn Easy Apply Test
++**Prompt:**
++> "Open the LinkedIn Easy Apply application at [URL], fill out my personal details, upload my resume, and prepare it for review."
++
++**Expected Behavior:**
++1. Agent plans `application_action(action_type="open", url="[URL]")`.
++2. Browser opens the target LinkedIn URL.
++3. Agent evaluates the DOM and pulls user info via `application_action(action_type="get_details")`.
++4. Agent uses `fill_form` and `click_element` to progress through the Easy Apply modals.
++5. Agent detects the resume upload field and uses `application_action(action_type="upload_resume", selector="input[type='file']")` to inject the PDF.
++6. Agent concludes by calling `application_action(action_type="review")`, passing the company, role, filled fields, and missing fields.
++7. A warning is logged, the `pending_applications` table updates status to `prepared`, and the agent explicitly waits for user input.
++
++## 2. Internshala Application Test
++**Prompt:**
++> "I want to apply for the Frontend role at Acme Corp on Internshala. Prepare the application."
++
++**Expected Behavior:**
++1. Similar to the LinkedIn flow, the agent navigates the DOM.
++2. It fetches personal details and populates text areas.
++3. It identifies any mandatory fields missing from `user_profile.json` (e.g., "Why should you be hired for this role?").
++4. It calls `review` highlighting the missing fields in the `missing_fields` parameter.
++5. Execution halts pending user manual intervention to answer the custom questions before final submission.
++
++## Failure Scenarios
++
++- **Missing Resume File:** If `upload_resume` is called but the file at `resume_path` in `user_profile.json` does not exist on disk, the agent safely traps the exception and returns the error back to the LLM context.
++- **Invalid Profile JSON:** If `user_profile.json` is missing or malformed, `get_details` returns empty strings, forcing the agent to rely entirely on missing fields reporting.
++- **Changed DOM / Modal Flow:** If a platform updates its UI flow unexpectedly, `fill_form` or `click_element` timeout gracefully after 5000ms. The loop observes the failure and can attempt an alternative generic CSS selector heuristically.
+\ No newline at end of file
+diff --git a/BROWSER_AGENT_IMPLEMENTATION.md b/BROWSER_AGENT_IMPLEMENTATION.md
+new file mode 100644
+index 0000000..daafe14
+--- /dev/null
++++ b/BROWSER_AGENT_IMPLEMENTATION.md
+@@ -0,0 +1,60 @@
++# JARVIS Browser Agent v1 Implementation
++
++## Overview
++This implementation upgrades the existing JARVIS backend to support generalized browser automation using Playwright and native Ollama tool-calling JSON schemas, enabling multi-step execution with history context.
++
++## Files Modified / Created
++
++### New Files
++- `backend/automation/browser_agent.py`
++  - Encapsulates async Playwright usage.
++  - Exposes tools: `goto_url`, `get_page_content`, `click_element`, `fill_input`, and `screenshot`.
++
++### Modified Files
++- `backend/requirements.txt`
++  - Appended `playwright>=1.44.0`
++- `backend/app/core/ollama_client.py`
++  - Modified `chat` method to optionally accept a `tools` list parameter and return the entire message dictionary so tool calls can be inspected.
++- `backend/app/services/ai_service.py`
++  - Updated `chat` to support passing `tools`.
++- `backend/autonomous/planner.py`
++  - Removed old string-matching logic.
++  - Defined `TOOLS_SCHEMA` strictly detailing JSON inputs for `open_app`, `navigate_browser`, `browser_click`, `browser_fill`, `browser_read`, and `log_thought`.
++  - Parses the structured `tool_calls` array returned by Ollama into the internal agent format.
++- `backend/autonomous/brain.py`
++  - Updated prompt logic to accept `action_history`.
++  - Provided `TOOLS_SCHEMA` to Ollama.
++- `backend/autonomous/executor.py`
++  - Re-routed browser actions (`navigate_browser`, `browser_click`, etc.) directly to the new `browser_agent` instance.
++- `backend/autonomous/agent_loop.py`
++  - Added an `action_history` list containing the last 5 executed actions and their results.
++  - Combines Tesseract screen OCR with the Playwright browser DOM text to feed into the AI's context window.
++
++## New Dependencies
++- `playwright>=1.44.0` (installed via pip + `playwright install chromium`).
++
++## Testing Instructions
++
++1. Start the agent loop:
++   ```bash
++   cd backend
++   python run.py
++   # OR
++   python -m autonomous.agent_loop
++   ```
++2. The agent will initialize Playwright automatically when a browser task is invoked.
++3. Test using a voice command or by invoking the brain loop manually. For instance, you can mock an initial state by hardcoding a thought into the loop:
++   - "Find React internships, go to google.com and search for React internships."
++4. Observe the console logs (`logger.info`) to see:
++   - Ollama returning a structured tool call.
++   - The executor triggering Playwright.
++   - The browser window opening (headless=False) and navigating.
++   - History state updating.
++
++## Example Prompts for the Agent
++You can now speak to or prompt the agent with complex requests:
++- *"Navigate to https://news.ycombinator.com, read the headlines, and summarize the top 3 posts."*
++- *"Go to LinkedIn.com. Once there, fill the username input with 'test@example.com' and click the Login button."*
++- *"Please open Wikipedia, search for 'Artificial Intelligence', and take a screenshot of the resulting page."*
++
++Because the loop now tracks history, the agent understands when it is on step 2 of a 5 step process, mitigating infinite loops and repetition.
+\ No newline at end of file
+diff --git a/CURRENT_AGENT_ANALYSIS.md b/CURRENT_AGENT_ANALYSIS.md
+new file mode 100644
+index 0000000..1705380
+--- /dev/null
++++ b/CURRENT_AGENT_ANALYSIS.md
+@@ -0,0 +1,56 @@
++# Current Agent Analysis
++
++## 1. Current Agent Execution Flow
++The existing agent uses a continuous observation-action loop (defined in `backend/autonomous/agent_loop.py`):
++1. **Observe**: Captures the screen and uses PyTesseract to extract OCR text (`screen_agent.extract_text`).
++2. **Think**: Passes the OCR context to the LLM (Ollama) to decide if an action is needed (`autonomous/brain.py`).
++3. **Plan**: Parses the AI's natural language response into a specific JSON command (`autonomous/planner.py`).
++4. **Execute**: Runs the selected action against the OS or browser via `autonomous/executor.py` or `action_executor.py`.
++
++## 2. Current Planner Behavior
++The planner (`autonomous/planner.py`) relies on simplistic string matching rather than structured JSON outputs or native LLM tool-calling. It lowercases the AI's response and looks for explicit keywords (e.g., `if "open vscode" in response_lower:` -> returns `{"action": "open_app", "args": {"app_name": "code"}}`). This makes the planner rigid, difficult to scale, and completely reliant on the LLM generating exact phrasing.
++
++Alternatively, `services/agent_service.py` has a multi-step agent execution flow that tries to extract raw JSON out of markdown blocks (`_parse_plan`), which is better but still brittle compared to modern native tool-calling APIs.
++
++## 3. Current Executor Behavior
++The `executor.py` and `services/action_executor.py` files take the parsed dictionary and route it to standard Python functions.
++- OS apps are opened via `subprocess.Popen` mapping known app names to system paths.
++- UI manipulation is handled by `PyAutoGUI` (typing text, moving mouse, clicking, pressing keys).
++- File operations are handled by standard Python OS/pathlib methods.
++
++## 4. Current Memory Behavior
++Memory is handled by an SQLite database (`backend/app/database/db.py`) tracking `tasks`, `ai_logs`, `activity`, and `files_history`.
++- Currently, this acts only as an audit trail (logging what the AI *did*).
++- **Critical flaw**: The agent does not read its own past activity to build context for current decisions. There is no vector database or semantic search to retrieve long-term context or "remember" past user preferences.
++
++## 5. Existing Tool Architecture
++Tools are hardcoded functions scattered across `action_executor.py` and `executor.py`. They lack formalized JSON schemas (like JSON Schema definitions used by OpenAI/Ollama tool calling). Because they lack schemas, the LLM cannot natively introspect what tools are available or what arguments they require; instead, the `ai_service.py` prompt manually explains what to do, and the backend heavily sanitizes the output.
++
++## 6. Existing Browser Automation Capabilities
++Browser automation is currently heavily localized to one specific task: WhatsApp automation.
++- `automation/whatsapp_automation.py` uses **Selenium** with a persistent Chrome profile to navigate to WhatsApp Web, search for contacts, and send messages.
++- There is no general-purpose browser agent capable of navigating arbitrary DOMs, clicking links, reading page text, or filling out generic forms.
++
++## 7. Existing Desktop Automation Capabilities
++Desktop automation is moderately mature:
++- Screenshots and OCR via `mss` and `pytesseract`.
++- Mouse and keyboard injection via `pyautogui`.
++- Native window management via `subprocess` commands and `pygetwindow`.
++However, relying on coordinate-based clicks and OCR text matching is notoriously brittle for cross-platform autonomous agents.
++
++## 8. Existing Voice Capabilities
++The Voice pipeline (`voice_agent.py`) uses:
++- Wake word and listening via standard microphones.
++- **faster-whisper** for Speech-to-Text.
++- **pyttsx3** / SAPI5 for offline Text-to-Speech.
++- While entirely offline, the current TTS implementation is somewhat robotic and dependent on the host OS's native voices.
++
++---
++
++## Missing Capabilities Preventing Real Agent & Job Application Automation
++To enable Jarvis to act as a real AI agent that can reliably apply for jobs and perform arbitrary browser tasks:
++
++1. **Native Tool Calling**: The agent needs to utilize Ollama's native tool-calling JSON schema support. This ensures the LLM reliably populates correct arguments instead of relying on regex scraping and string parsing.
++2. **General-Purpose Browser Control**: Selenium is too slow and specific. The agent needs **Playwright** wrapped into a generic set of tools (`navigate`, `click_element`, `fill_input`, `read_dom`), allowing the agent to "see" the accessibility tree of the page and interact with job boards dynamically.
++3. **Multi-Step Memory Context**: The agent's loop needs to carry over its previous actions (e.g., "I clicked the login button, now I see the password field") rather than evaluating every loop tick as a brand-new stateless event.
++4. **Robust Plan Execution State**: Job applications require sequences (Log in -> Search -> Click Apply -> Upload Resume -> Submit). The current loop is too reactive. It needs a state machine that tracks progress through a complex goal over minutes or hours.
+\ No newline at end of file
+diff --git a/FILE_VERIFICATION.md b/FILE_VERIFICATION.md
+new file mode 100644
+index 0000000..e0fae2e
+--- /dev/null
++++ b/FILE_VERIFICATION.md
+@@ -0,0 +1,79 @@
++# File Verification Report
++
++## Verification of Files Mentioned in `TECHNICAL_AUDIT.md`
++
++| File Path | Exists? | Approx LOC | Main Classes/Functions | Purpose Summary |
++| --- | --- | --- | --- | --- |
++| `frontend/src/pages/chat/index.tsx` | YES | 333 | React component (Chat) | Interactive chat UI to converse with local LLM. |
++| `frontend/src/pages/files/index.tsx` | YES | 159 | React component (Files) | Interface to interact with workspace files. |
++| `frontend/src/pages/voice/index.tsx` | YES | 446 | `VoiceAssistant` component, `browserSpeak` | Voice UI with waveform, Web Speech API integration. |
++| `frontend/src/pages/control/index.tsx` | YES | 872 | React component (Control) | System control and execution page logic. |
++| `frontend/src/pages/tasks/index.tsx` | YES | 163 | React component (Tasks) | List and manage running background tasks. |
++| `backend/app/main.py` | YES | 94 | `lifespan`, `root()`, `FastAPI()` | FastAPI server initialization and router inclusion. |
++| `backend/agent_daemon.py` | YES | 84 | `handle_voice_command`, `voice_loop`, `task_reminder_loop`, `main` | Background loop for continuous monitoring/tasks without UI. |
++| `backend/app/core/ollama_client.py` | YES | 185 | `OllamaClient`, `generate`, `generate_stream` | Client class to talk to local Ollama instance over HTTP. |
++| `backend/voice/voice_agent.py` | YES | 385 | `VoiceAgent`, `generate_spoken_response` | Core logic for wake-words, recording, and triggering STT/TTS. |
++| `backend/autonomous/planner.py` | YES | 43 | `plan` | Maps raw natural language thought into discrete JSON actions. |
++| `backend/autonomous/executor.py` | YES | 64 | `Executor` (assumed from context/name) | Runs planned commands against the system. |
++| `backend/app/database/db.py` | YES | 144 | `init_db`, `create_task`, `list_tasks` | SQLite schema setup and CRUD operations via `aiosqlite`. |
++| `backend/automation/whatsapp_desktop_automation.py` | YES | 106 | `open_whatsapp`, `send_whatsapp_message` | Automates WhatsApp Desktop via PyAutoGUI. |
++| `backend/app/services/action_executor.py` | YES | 480 | `ActionExecutor` | Executes OS actions (click, type, open app) using subprocess/PyAutoGUI. |
++| `backend/app/agents/vision_module.py` | YES | 566 | `capture_full_screen`, `_configure_tesseract` | Capture screen, run PyTesseract OCR, and optionally feed to LLM. |
++
++---
++
++## 1. Top-Level Folders
++- `backend/`
++- `frontend/`
++
++## 2. Backend Folders
++- `backend/agents/`
++- `backend/api/`
++- `backend/app/`
++- `backend/automation/`
++- `backend/autonomous/`
++- `backend/core/`
++- `backend/database/`
++- `backend/models/`
++- `backend/services/`
++- `backend/system/`
++- `backend/utils/`
++- `backend/voice/`
++
++## 3. Frontend Folders
++- `frontend/public/`
++- `frontend/src/`
++- `frontend/src/components/`
++- `frontend/src/hooks/`
++- `frontend/src/lib/`
++- `frontend/src/pages/`
++- `frontend/src/test/`
++- `frontend/src/types/`
++
++## 4. Python Entry Points
++- `backend/agent_daemon.py`
++- `backend/run.py`
++- `backend/memory_test.py`
++- `backend/test_actions_fixed.py`
++- `backend/test_executor.py`
++- `backend/test_screen.py`
++- `backend/verify_env.py`
++- `backend/vision_test.py`
++- `backend/whatsapp_test.py`
++
++## 5. React Entry Points
++- `frontend/src/pages/_app.tsx` (Next.js Application Wrapper)
++- `frontend/src/index.css` (Global styles)
++
++## 6. Database-Related Files
++- `backend/app/database/db.py`
++
++## 7. Automation-Related Files
++- `backend/automation/__init__.py`
++- `backend/automation/whatsapp_automation.py`
++- `backend/automation/whatsapp_desktop_automation.py`
++- `backend/app/system/__init__.py`
++- `backend/app/system/app_control.py`
++
++## 8. Ollama-Related Files
++- `backend/app/core/ollama_client.py`
+diff --git a/JOB_AGENT_PLAN.md b/JOB_AGENT_PLAN.md
+new file mode 100644
+index 0000000..083faa6
+--- /dev/null
++++ b/JOB_AGENT_PLAN.md
+@@ -0,0 +1,60 @@
++# Job Agent Automation Plan
++
++This document outlines the workflows for the JARVIS Job Application Agent.
++
++## Overview
++The goal is to allow JARVIS to autonomously search, find, and apply for jobs (e.g., React internships) on platforms like LinkedIn, Indeed, and specific company portals using the Playwright browser agent.
++
++---
++
++## 1. Internship & Job Search Workflow
++**Trigger:** Voice command or UI prompt ("Find me React internships").
++
++1. **Initialization:**
++   - Agent accesses `backend/memory/user_profile.json` to load skills (e.g., React, TypeScript), location, and preferences.
++   - Calculates target keywords based on skills.
++2. **Navigation:**
++   - Calls `navigate_browser` to open LinkedIn Jobs or Indeed.
++3. **Execution:**
++   - Uses `browser_fill` to enter the keywords ("React Intern") into the search bar.
++   - Uses `browser_click` to click the 'Search' button.
++   - Uses `browser_read` or generic screen OCR to parse the list of job titles and links.
++4. **Processing:**
++   - The LLM processes the text, identifying the top 3-5 relevant listings.
++   - The loop continues for each listing, parsing descriptions to ensure a good match.
++5. **Output:**
++   - Agent synthesizes a summary of the listings and pauses for user feedback before proceeding to application.
++
++---
++
++## 2. Resume Upload Workflow
++**Trigger:** Required as part of a job application form.
++
++1. **Identify Upload Field:**
++   - Through `browser_read`, the agent identifies the "Upload Resume" button or `<input type="file">`.
++2. **Retrieve Path:**
++   - Reads `resume_path` from `memory/user_profile.json`.
++3. **Execution:**
++   - The agent (pending an `upload_file` tool addition, or using generic native OS keystrokes) triggers the file upload dialogue.
++   - It types the absolute file path into the native dialogue box and hits "Enter" (using OS-level tools), OR directly sets the file path on the HTML input via Playwright APIs.
++4. **Verification:**
++   - Agent verifies that the upload succeeded (e.g., seeing a "resume.pdf uploaded" text node).
++
++---
++
++## 3. Safe Application Workflow
++**Trigger:** Moving from reviewing a job description to applying.
++
++1. **Form Filling:**
++   - Agent clicks the "Apply Now" button.
++   - For every field on the form (Name, Email, Phone, LinkedIn, GitHub), the agent reads the label and queries `memory/user_profile.json` for the data.
++   - Uses `browser_fill` to populate the form inputs.
++2. **Upload:**
++   - Executes the Resume Upload Workflow if required.
++3. **MANDATORY SAFETY HALT (Confirmation Check):**
++   - **Crucial Rule:** The agent MUST NOT click the final "Submit Application" button autonomously.
++   - Upon completing the form, the agent will log its thought: "Form is complete. Waiting for user confirmation to submit."
++   - The agent will use the voice or chat module to ask: *"I have filled out the application for [Company]. Please review it in the browser. Should I submit?"*
++4. **Final Action:**
++   - If the user says "Yes" or clicks "Approve", the agent executes `browser_click` on the Submit button.
++   - If "No", the agent halts or clears the form.
+\ No newline at end of file
+diff --git a/JOB_AGENT_V1_TESTING.md b/JOB_AGENT_V1_TESTING.md
+new file mode 100644
+index 0000000..79cce0b
+--- /dev/null
++++ b/JOB_AGENT_V1_TESTING.md
+@@ -0,0 +1,41 @@
++# JOB AGENT V1 TESTING
++
++This document outlines how to test the newly implemented `JobAgent` capabilities, which leverage the `BrowserAgent` to autonomously search and review job applications.
++
++## Supported Job Boards
++The agent natively supports structured querying and initial listing extraction for:
++1. **LinkedIn** (`platform: "linkedin"`)
++2. **Internshala** (`platform: "internshala"`)
++3. **Wellfound** (formerly AngelList) (`platform: "wellfound"`)
++4. **Naukri** (`platform: "naukri"`)
++
++## Testing the Search Workflow
++
++**Prompt:**
++> "Search LinkedIn for remote React Developer jobs in London."
++
++**Expected Behavior:**
++1. The agent calls the `search_jobs` tool with `platform: "linkedin"`, `query: "React Developer remote"`, and `location: "London"`.
++2. The browser automatically navigates to `https://www.linkedin.com/jobs/search?keywords=React%20Developer%20remote&location=London`.
++3. The agent reads the page content and passes it to the extraction LLM prompt.
++4. The backend writes the structured results (title, company, location, URL) to the `job_search_history` SQLite table.
++5. The agent responds indicating the number of jobs found.
++
++**Prompt:**
++> "Find me Python internships on Internshala."
++
++**Expected Behavior:**
++1. The agent calls the `search_jobs` tool with `platform: "internshala"`, `query: "Python"`.
++2. The browser automatically navigates to `https://internshala.com/internships/keywords-Python`.
++3. The agent reads the page content and stores the listings in the SQLite `job_search_history` table.
++
++## Testing the Application Workflow & Safety Constraints
++
++**Prompt:**
++> "I have reviewed the job description for the Frontend role at Google. Please prepare my application using my user profile, but don't submit it yet."
++
++**Expected Behavior:**
++1. The agent synthesizes the form fields.
++2. It calls the `review_application` tool with the job title, company, and a dictionary of populated fields (e.g., pulling "Jane Doe" from `backend/memory/user_profile.json`).
++3. **MANDATORY SAFETY CONSTRAINT:** The system will log a critical warning: `WARNING: I will not submit this application automatically. Please review the browser window and confirm.`
++4. The execution loop halts, returning control to the user. Final submission (`browser_click` on the submit button) will ONLY occur if the user subsequently provides a direct prompt like "Looks good, go ahead and submit."
+\ No newline at end of file
+diff --git a/JOB_AGENT_V2_TESTING.md b/JOB_AGENT_V2_TESTING.md
+new file mode 100644
+index 0000000..3aa0fc5
+--- /dev/null
++++ b/JOB_AGENT_V2_TESTING.md
+@@ -0,0 +1,44 @@
++# JOB AGENT V2 TESTING
++
++This document outlines the testing workflow for the Job Agent v2 capabilities: Universal Search, Job Extraction, Resume Understanding, and Job Ranking.
++
++## 1. Resume Understanding
++**Prerequisites:**
++- Have a dummy PDF resume at the path specified in `backend/memory/user_profile.json` (e.g., `/home/jules/Documents/resume.pdf`).
++- Ensure `PyMuPDF` is installed (`pip install PyMuPDF`).
++
++**Test Action:**
++The background Job Scorer initializes by parsing this PDF. The LLM extracts the candidate's skills, technologies, and projects, caching them to compare against jobs.
++
++## 2. Job Search and Extraction
++**Prompt:**
++> "Find React developer internships on Wellfound and extract their required skills."
++
++**Expected Behavior:**
++1. Agent plans `search_jobs(platform="wellfound", query="React developer internship")`.
++2. Browser navigates to Wellfound and the page DOM is fed back into the agent context.
++3. The internal `job_agent._extract_jobs_from_page` method queries Ollama to extract an array of `JobResult`s containing the required `skills`.
++4. The jobs are logged into `job_search_history`.
++
++## 3. Job Ranking and Saving
++**Prompt:**
++> "Score the latest job listing you found against my resume."
++
++**Expected Behavior:**
++1. The agent plans `score_job(title="...", company="..." ...)`.
++2. `job_scorer.py` evaluates the job's `skills` against the candidate's `user_profile.json` and the `resume_analyzer.py` output.
++3. The LLM assigns a score from 0.0 to 10.0 and provides reasoning.
++4. If the score is > 6.0, the job is permanently stored in the `saved_jobs` SQLite table.
++
++## 4. Application Preparation (Safety Restraint)
++**Prompt:**
++> "I like the high-scoring job. Prepare my application."
++
++**Expected Behavior:**
++1. The agent plans `review_application(job_title="...", company="...", fields={...})`.
++2. The agent outputs the fields to be submitted alongside the `resume_path`.
++3. **CRITICAL:** The agent logs a warning and HALTS. It strictly waits for explicit user confirmation before any final DOM submission via `click_element(selector="Submit")`.
++
++## Failure Cases
++- **Missing Resume:** If the PDF does not exist at `resume_path`, the scorer gracefully falls back to the static `skills` array defined in `user_profile.json`.
++- **Garbage DOM/No Jobs:** If the search returns a 404 or captcha page, `extract_jobs_from_page` gracefully returns `[]`, preventing database contamination.
+\ No newline at end of file
+diff --git a/MEMORY_AGENT_V1_TESTING.md b/MEMORY_AGENT_V1_TESTING.md
+new file mode 100644
+index 0000000..091fcbc
+--- /dev/null
++++ b/MEMORY_AGENT_V1_TESTING.md
+@@ -0,0 +1,50 @@
++# MEMORY AGENT V1 TESTING
++
++This document outlines tests for verifying the long-term memory integrations in the JARVIS system, specifically focusing on user preferences, task history continuation, and automatic learning.
++
++## 1. Memory Recall Tests
++
++**Prerequisites:**
++- `user_preferences` table in `ultron.db` must have data, or `memory/user_profile.json` must exist.
++- E.g., `user_profile.json` has `{"skills": ["React", "Python"]}`.
++
++**Prompt:**
++> "What are my primary skills?"
++
++**Expected Behavior:**
++1. The `agent_loop.py` captures the browser/screen state and asks `brain.py` to think.
++2. `brain.py` pulls `user_profile` via `memory_manager` and embeds it in the system prompt.
++3. The LLM correctly identifies the skills without searching the web.
++4. The agent outputs the answer using `log_thought`.
++
++## 2. Task Continuation Tests
++
++**Prerequisites:**
++- The agent successfully executed a task previously, which was saved to `task_history` (e.g. "Logged thought: Applied to 3 Google jobs").
++
++**Prompt:**
++> "What was the last company I applied to?"
++
++**Expected Behavior:**
++1. `brain.py` pulls recent tasks (`task_history`) and applications (`job_history`) via `memory_manager`.
++2. The LLM receives `[LONG TERM MEMORY]` containing `[{"company": "Google", "role": "Frontend", "status": "prepared"}]`.
++3. The LLM answers "Google" using `log_thought` without needing to re-check the browser or active memory list.
++
++## 3. Preference Learning Tests
++
++**Trigger Context:**
++- The user uses voice or prompts repeatedly indicating a preference. E.g.
++  Action 1: `search_jobs(platform="linkedin", query="Remote Python")`
++  Action 2: `search_web(query="Remote Python jobs")`
++  Action 3: `search_jobs(platform="wellfound", query="Remote Python intern")`
++
++**Expected Behavior:**
++1. Once the `action_history` length hits intervals of 5, the `agent_loop.py` triggers `memory_manager.learn_preferences(action_history)`.
++2. The `ai_service` processes the last 5 actions and identifies the keyword trend: "Remote" and "Python".
++3. The LLM returns a JSON object like `{"location_preference": "Remote", "language_preference": "Python"}`.
++4. `memory_manager.save_memory()` writes these keys to the SQLite `user_preferences` table.
++5. In subsequent loops, `brain.py` automatically injects `{"location_preference": "Remote", "language_preference": "Python"}` into the `[LONG TERM MEMORY]` block, permanently altering the agent's contextual behavior without explicit configuration.
++
++## Failure Scenarios
++- **No Trend Detected:** If the 5 recent actions are random (e.g. checked weather, opened YouTube, checked time), the `learn_preferences` prompt outputs `{}`. The SQLite database remains unmodified, preventing hallucinated preferences.
++- **Corrupted JSON Profile:** If `user_profile.json` is malformed, `memory_manager.load_user_profile()` returns `{}` and logs an error, ensuring the agent doesn't crash during the thinking phase.
+\ No newline at end of file
+diff --git a/NEXT_IMPLEMENTATION_PHASE.md b/NEXT_IMPLEMENTATION_PHASE.md
+new file mode 100644
+index 0000000..5be9266
+--- /dev/null
++++ b/NEXT_IMPLEMENTATION_PHASE.md
+@@ -0,0 +1,36 @@
++# Next Implementation Phase Recommendation
++
++Based strictly on extending the existing codebase, without rebuilding the project or shifting to a new architecture from scratch, I recommend the following as the **highest-impact next development phase**:
++
++## Phase: Playwright Browser Agent & Native Tool Calling
++
++### Why this phase?
++The immediate goal is to enable "Job application assistance" and general "Browser automation," which are currently impossible with the highly-specialized Selenium WhatsApp script. Additionally, the core agent planning loop relies on brittle string-matching. Upgrading to native tool calling while introducing Playwright solves both problems simultaneously, drastically increasing the agent's capability and reliability.
++
++### Key Objectives
++
++1. **Replace Selenium with Playwright (Async)**
++   - **Action**: Add `playwright` to `backend/requirements.txt`.
++   - **Implementation**: Create a new `backend/automation/browser_agent.py` utilizing `playwright.async_api`.
++   - **Capabilities**: Implement generic browser functions:
++     - `goto_url(url)`
++     - `get_page_content()` (extracting clean text or accessibility trees, not raw HTML)
++     - `click_element(selector)`
++     - `fill_input(selector, text)`
++   - **Benefit**: Faster, headless-capable, and doesn't require managing ChromeDriver binaries. It provides the foundation for logging into LinkedIn, Indeed, etc.
++
++2. **Upgrade `planner.py` to use Native Ollama Tool Calling**
++   - **Action**: Rewrite how the agent requests actions.
++   - **Implementation**: Instead of the LLM outputting strings like "open chrome", use Ollama's `tools` API (supported in recent Ollama versions for Qwen/Llama3).
++   - Define strict Pydantic JSON schemas for tools like `open_app`, `navigate_browser`, `click_web_element`.
++   - Pass these schemas to the Ollama API in `ollama_client.py`.
++   - **Benefit**: The LLM will output guaranteed structured JSON matching the exact arguments the `action_executor.py` needs, completely removing the need for manual regex parsing.
++
++3. **Enhance the Multi-Step Agent State (`agent_loop.py`)**
++   - **Action**: Add conversational/action context tracking.
++   - **Implementation**: When the loop runs, pass the *last 5 actions and their results* back into the LLM prompt.
++   - E.g., `History: [Agent navigated to indeed.com -> Success. Agent clicked 'Login' -> Success. Current Screen: Login Page]`.
++   - **Benefit**: This allows the agent to execute complex, multi-step tasks like a job application, because it remembers what step of the process it is currently on.
++
++### Summary
++By integrating Playwright and wiring it into native Ollama tool-calling, the existing agent will transform from a simple reactive script into a structured, reliable autonomous web worker capable of navigating dynamic web apps.
+\ No newline at end of file
+diff --git a/TECHNICAL_AUDIT.md b/TECHNICAL_AUDIT.md
+new file mode 100644
+index 0000000..56f2c33
+--- /dev/null
++++ b/TECHNICAL_AUDIT.md
+@@ -0,0 +1,192 @@
++# Technical Audit Report: Personal AI Agent v2
++
++## 1. Current Project Architecture
++- **Frontend**: Next.js 14+ with React 18, utilizing Vite internally for some tooling config (despite Next.js scripts), TailwindCSS, and Shadcn UI components.
++- **Backend**: Python 3.10+ FastAPI server running asynchronously using `uvicorn`, communicating with Ollama locally for LLM operations.
++- **Communication**: Frontend communicates to Backend over standard HTTP REST (`/api/*`) and WebSockets (e.g., live screen insights, voice).
++- **Core Automation**: Actions are dispatched to OS utilities (Subprocess) and PyAutoGUI / MSS. WhatsApp uses Selenium or direct Windows UI automation.
++- **Overall status**: The current architecture is a classic decoupled client-server model. It does not meet the "Tauri + Rust Backend + Python Agent Layer" constraint yet. The entire frontend/backend packaging needs a structural shift to conform to the new architecture.
++
++## 2. Frontend Modules and Completion Status
++- **Workspace/Chat**: `chat/index.tsx`, `files/index.tsx`
++  - **Purpose**: Interactive coding and file manipulation interface.
++  - **Status**: Partially completed. UI is present, integrates with agent APIs.
++  - **Tech Debt**: Heavy reliance on browser-native APIs where Tauri native APIs would provide better local system access.
++  - **Recommended Improvements**: Refactor standard Next.js routing into a React SPA suitable for Tauri compilation. Replace browser `fetch` calls with Tauri IPC.
++  - **Priority**: High
++
++- **Voice Assistant Interface**: `voice/index.tsx`
++  - **Purpose**: Voice command UI with waveform and Web Speech API fallback.
++  - **Status**: Partially completed. Relies heavily on Web API/browser speech synthesis.
++  - **Tech Debt**: Fails offline requirements gracefully if relying on browser APIs that phone home.
++  - **Recommended Improvements**: Delegate entirely to backend/Tauri core for Piper TTS & Whisper.cpp to ensure local execution.
++  - **Priority**: Medium
++
++- **System Control & Tasks**: `control/index.tsx`, `tasks/index.tsx`
++  - **Purpose**: Execute terminal tasks, read logs, manage OS apps.
++  - **Status**: Completed but heavily tied to FastAPI backend.
++  - **Tech Debt**: Relies on REST endpoints.
++  - **Recommended Improvements**: Move system monitoring and control strictly into Tauri Rust core.
++  - **Priority**: Low
++
++## 3. Backend Modules and Completion Status
++- **FastAPI Core**: `backend/app/main.py`
++  - **Purpose**: Orchestrator, serves REST endpoints.
++  - **Status**: Completed.
++  - **Tech Debt**: Heavyweight. Requires managing Python environments and local networking ports, which adds friction to local-first setup.
++  - **Recommended Improvements**: Transition high-level logic to Tauri (Rust) where possible. Retain Python purely as an Agent Layer daemon (e.g. `agent_daemon.py`) communicating over stdio or local IPC with Rust, not exposing generic HTTP.
++  - **Priority**: Critical
++
++- **AI Service (Ollama)**: `backend/app/core/ollama_client.py`
++  - **Purpose**: Wraps local Ollama APIs.
++  - **Status**: Completed.
++  - **Tech Debt**: None, works well for local constraint.
++  - **Recommended Improvements**: Optimize error handling if Ollama isn't running.
++  - **Priority**: Low
++
++- **Voice Module**: `backend/voice/`
++  - **Purpose**: Wake-word and offline Voice.
++  - **Status**: Completed (using `faster-whisper` and `pyttsx3`/`SpeechRecognition`).
++  - **Tech Debt**: `pyttsx3` is notoriously clunky and `SpeechRecognition` can be slow/legacy.
++  - **Recommended Improvements**: Replace with `whisper.cpp` Python bindings (or Rust bindings via Tauri) and Piper TTS for high-quality, fully local voice interaction.
++  - **Priority**: High
++
++## 4. Agent Framework Status
++- **Planner & Executor**: `backend/autonomous/planner.py`, `backend/autonomous/executor.py`
++  - **Purpose**: Translate NLP to JSON intent, execute on local OS.
++  - **Status**: Completed and functioning natively.
++  - **Tech Debt**: Uses raw Python execution (`eval`/subprocess) which is powerful but brittle.
++  - **Recommended Improvements**: Define strict schemas using Pydantic, formalize tool-calling using standard local LLM features (Ollama tool-calling) instead of manual string parsing.
++  - **Priority**: High
++
++## 5. Ollama Integration Status
++- **Purpose**: Providing AI capabilities (Qwen3, Llama, DeepSeek).
++- **Status**: Completed via HTTP requests to `localhost:11434`.
++- **Tech Debt**: HTTP overhead is minimal but manual streaming logic exists.
++- **Recommended Improvements**: Integrate native Ollama tool-calling. Ensure Qwen3 and DeepSeek models are configured as defaults instead of fallback Llama models.
++- **Priority**: Low
++
++## 6. Memory Architecture
++- **Implementation**: SQLite via `aiosqlite` (`backend/app/database/db.py`).
++  - **Purpose**: Persist tasks, logs, and context.
++  - **Status**: Partially completed. Stores basic history.
++  - **Tech Debt**: Missing vector store integration for semantic memory. "Persistent memory" currently just means relational logs.
++  - **Recommended Improvements**: Add local vector database (e.g., ChromaDB local, or SQLite+Vector) to enable genuine agent reflection and semantic recall.
++  - **Priority**: High
++
++## 7. Browser Automation Readiness
++- **Implementation**: Selenium (`backend/automation/whatsapp_desktop_automation.py`).
++  - **Purpose**: Automating web apps (specifically WhatsApp currently).
++  - **Status**: Partially completed.
++  - **Tech Debt**: Selenium is slow and requires managing chromedriver.
++  - **Recommended Improvements**: Replace completely with **Playwright**. Playwright provides a much richer, robust browser context model and doesn't require separate driver binaries natively.
++  - **Priority**: Critical
++
++## 8. Desktop Automation Readiness
++- **Implementation**: PyAutoGUI, MSS, OpenCV (`backend/app/services/action_executor.py`, `backend/app/agents/vision_module.py`).
++  - **Purpose**: Screenshots, coordinate clicking, keyboard typing.
++  - **Status**: Completed.
++  - **Tech Debt**: Screen coordinates are highly resolution dependent. Tesseract OCR is finicky and requires system installation.
++  - **Recommended Improvements**: Investigate multi-modal local LLMs (e.g. LLaVA or Qwen-VL) to bypass Tesseract OCR entirely, reading UI natively. Use Rust for lower-level native OS hooks where PyAutoGUI falls short.
++  - **Priority**: Medium
++
++## 9. Security Considerations
++- **Status**: Local-only, so external threats are minimal.
++- **Tech Debt**: Python `subprocess` and `os.system` are run without sandboxing. The Agent can theoretically execute destructive commands (e.g., `rm -rf`).
++- **Recommended Improvements**: Implement a "dry-run" mode or prompt confirmation for irreversible file system/shell actions.
++- **Priority**: High
++
++## 10. Missing Dependencies
++- Playwright (Python bindings)
++- Whisper.cpp (Python/Rust bindings)
++- Piper TTS (Binaries/Bindings)
++- Tauri CLI and Rust environment for build pipeline.
++
++## 11. Scalability Concerns
++- **Model Ram Usage**: Running Local LLM + Whisper + TTS simultaneously will consume significant RAM/VRAM. Memory management between models needs orchestration.
++- **Python Threading**: Heavy reliance on `asyncio.to_thread` for blocking UI tasks (like screen capture or browser automation).
++
++## 12. Recommended Production Architecture
++
++To meet all constraints (Tauri, Rust, Python Agent Layer, Playwright, Whisper.cpp, Piper TTS, Local-first), the architecture should shift to:
++
++```text
++[ React (TypeScript) + Tauri UI ]
++          | (Tauri IPC / Events)
++          v
++[ Tauri Core (Rust) ]
++   - Manages Window State
++   - OS-level system calls (System Tray, Global Hotkeys)
++   - Spawns & monitors the Python Agent Layer process
++          | (gRPC, standard I/O, or local socket)
++          v
++[ Python Agent Layer ]
++   - Automation: Playwright, PyAutoGUI, MSS
++   - AI Comm: Ollama Client (Qwen3, DeepSeek)
++   - Voice Pipeline: Whisper.cpp STT <-> Piper TTS
++   - Memory: SQLite + Local Vector Search
++```
++
++---
++
++## A. Completed Features
++- Ollama local inference connectivity.
++- Desktop UI interactions (PyAutoGUI, App launching).
++- SQLite relational database scaffolding.
++- Basic screenshot & OCR pipeline.
++
++## B. Partially Completed Features
++- Agent planning loop (needs upgrade to native tool-calling).
++- Voice commands (needs migration to Piper/Whisper.cpp).
++- Browser automation (needs migration to Playwright).
++
++## C. Missing Features
++- Job application assistance module.
++- Tauri + Rust application shell.
++- Semantic persistent memory (Vector store).
++- Multi-modal vision analysis (instead of Tesseract).
++
++## D. Critical Refactors
++1. **Frontend**: Port Next.js components to standard Vite/React strictly static output for Tauri embedding. Remove Next.js Server Components / API routes.
++2. **Backend**: Discard FastAPI overhead. Convert Python backend into a dedicated daemon (`agent_daemon.py`) that communicates via JSON RPC or WebSockets over a loopback socket to the Tauri Rust core.
++3. **Browser Automation**: Rip out Selenium, install and wrap Playwright async Python API.
++4. **Voice**: Replace `faster-whisper` with `whisper.cpp`, replace `pyttsx3` with Piper.
++
++## E. Recommended Folder Structure
++```
++ultron-agent/
++├── src-tauri/                 # Rust Backend (Tauri Core)
++│   ├── src/
++│   │   ├── main.rs            # Entry point, spawns Python daemon
++│   │   ├── commands.rs        # IPC handlers
++│   │   └── system.rs          # Native OS hooks
++│   ├── Cargo.toml
++│   └── tauri.conf.json
++├── src/                       # Frontend (React + TypeScript)
++│   ├── components/            # UI Components (Shadcn)
++│   ├── pages/                 # React Router Views
++│   ├── lib/                   # Tauri IPC Wrappers
++│   └── main.tsx               # React Entry point
++├── agent-layer/               # Python AI Backend
++│   ├── core/
++│   │   ├── llm.py             # Ollama client
++│   │   └── memory.py          # SQLite + Vector logic
++│   ├── automation/
++│   │   ├── browser.py         # Playwright scripts (Job App Assistant)
++│   │   └── desktop.py         # PyAutoGUI / MSS
++│   ├── voice/
++│   │   ├── stt.py             # Whisper.cpp
++│   │   └── tts.py             # Piper TTS
++│   ├── daemon.py              # Main entry loop for Python process
++│   ├── pyproject.toml
++│   └── requirements.txt
++├── package.json
++└── vite.config.ts
++```
++
++## F. Development Roadmap
++1. **Phase 1**: Initialize Tauri + Vite React project. Port existing frontend assets into the new structure. Ensure it builds as a native desktop app.
++2. **Phase 2**: Restructure Python backend into `agent-layer`. Remove FastAPI. Set up secure IPC/Local socket communication between Rust and Python.
++3. **Phase 3**: Migrate browser automation to Playwright. Build the foundation for Job Application assistance workflows.
++4. **Phase 4**: Overhaul Voice module with Whisper.cpp and Piper TTS for ultra-fast, local speech.
++5. **Phase 5**: Enhance Memory system with local embeddings. Refine Tool-Calling utilizing Ollama's native tool protocols.
+diff --git a/VOICE_AGENT_V2_TESTING.md b/VOICE_AGENT_V2_TESTING.md
+new file mode 100644
+index 0000000..4ded411
+--- /dev/null
++++ b/VOICE_AGENT_V2_TESTING.md
+@@ -0,0 +1,42 @@
++# VOICE AGENT V2 TESTING
++
++This document outlines the testing workflow for the offline voice command capabilities powered by Piper TTS and faster-whisper.
++
++## 1. Wake Word Tests
++
++**Test Action:**
++Run the backend daemon or execute `voice_agent.start()` and speak: "Hey Jarvis."
++
++**Expected Behavior:**
++1. The microphone loop running in `continuous_listen` (using `faster-whisper` on `int8` CPU quantization) detects the short transcription.
++2. The substring match successfully identifies "hey jarvis".
++3. The system halts its silent loop, emits a quick "Yes?" using Piper TTS (or an equivalent beep), and begins listening to a 6-second audio buffer to capture the main command.
++
++## 2. Speech Recognition Tests
++
++**Test Action:**
++Immediately after the wake word, speak: "Open Chrome and search for local jobs."
++
++**Expected Behavior:**
++1. `faster-whisper` accurately transcribes the buffer entirely locally.
++2. The string "Open Chrome and search for local jobs" is sent to the LLM via `brain.py` and `planner.py`.
++3. The LLM translates the NLP intent into a strict JSON tool schema: `{"action": "open_app", "args": {"app_name": "chrome"}}` (or the `search_web` action).
++4. `executor.py` dispatches the command.
++
++## 3. TTS Tests
++
++**Test Action:**
++Wait for the command to finish executing.
++
++**Expected Behavior:**
++1. The `executor` returns a string result (e.g., "Navigated to duckduckgo.com").
++2. `generate_spoken_response()` creates a conversational reply: "Done, I've opened Chrome for you."
++3. The text is passed to `voice_manager.speak()`.
++4. `voice_output.py` uses `piper-tts` with the `en_US-lessac-medium` neural voice model to synthesize raw PCM audio in-memory via `io.BytesIO`.
++5. `simpleaudio` plays the buffer loudly and clearly. No API calls are made to ElevenLabs or OpenAI.
++
++## Failure Scenarios
++
++- **Microphone Disconnected:** `pyaudio` throws an `IOError` during stream initialization. The voice agent gracefully disables itself without crashing the background daemon.
++- **Piper Missing Model:** If the `lessac-medium` `.onnx` file isn't downloaded yet, Piper hangs on the first start to download it locally to `models/piper/`. Subsequent calls are instantaneous.
++- **Noise Interference:** If faster-whisper transcribes hallucinated garbage (like "[music]" or "[blank]"), the loop discards it and continues listening silently.
+\ No newline at end of file
+diff --git a/backend/app/agents/application_agent.py b/backend/app/agents/application_agent.py
+new file mode 100644
+index 0000000..d920e5c
+--- /dev/null
++++ b/backend/app/agents/application_agent.py
+@@ -0,0 +1,113 @@
++"""
++agents/application_agent.py -- Agent responsible for preparing and safely submitting job applications.
++"""
++
++from __future__ import annotations
++import json
++import logging
++from pathlib import Path
++from typing import Dict, Any
++
++from automation.browser_agent import browser_agent
++from app.database.db import create_pending_application
++
++logger = logging.getLogger("application_agent")
++
++class ApplicationAgent:
++    """Agent for filling out job applications securely."""
++
++    def __init__(self):
++        self.profile_path = Path(__file__).resolve().parent.parent.parent / "memory" / "user_profile.json"
++
++    def _load_profile(self) -> Dict[str, Any]:
++        if self.profile_path.exists():
++            try:
++                with open(self.profile_path, "r") as f:
++                    return json.load(f)
++            except Exception as e:
++                logger.error(f"Failed to load user profile: {e}")
++        return {}
++
++    async def open_application(self, url: str) -> Dict[str, Any]:
++        """Navigate to the job application URL."""
++        from app.database.db import save_task_checkpoint
++        await save_task_checkpoint(f"application_{url}", "opened")
++        logger.info(f"Opening application URL: {url}")
++        return await browser_agent.goto_url(url)
++
++    async def upload_resume(self, selector: str) -> Dict[str, Any]:
++        """Upload the user's resume using Playwright's set_input_files on an <input type=file>."""
++        from app.database.db import save_task_checkpoint
++        await save_task_checkpoint(f"application_resume_upload_{selector}", "uploading")
++        logger.info(f"Attempting to upload resume to selector: {selector}")
++        profile = self._load_profile()
++        resume_path = profile.get("resume_path")
++
++        if not resume_path or not Path(resume_path).exists():
++            return {"success": False, "error": "Resume path not found or invalid in user_profile."}
++
++        try:
++            await browser_agent._ensure_started()
++            locator = browser_agent._page.locator(selector).first
++            await locator.set_input_files(resume_path)
++            return {"success": True, "message": f"Successfully uploaded resume to {selector}"}
++        except Exception as e:
++            logger.error("Failed to upload resume: %s", e)
++            return {"success": False, "error": str(e)}
++
++    async def fill_personal_details(self) -> Dict[str, Any]:
++        """
++        Attempt to auto-fill common fields (name, email, phone) on the active DOM
++        using generic selectors or by prompting the LLM for the right selectors.
++        Here we assume the LLM handles specific selectors via `fill_form` step by step,
++        so this function returns the raw data for the LLM to use.
++        """
++        profile = self._load_profile()
++        details = {
++            "name": profile.get("name", ""),
++            "email": profile.get("email", ""),
++            "phone": profile.get("phone", ""),
++            "linkedin_url": profile.get("linkedin_url", ""),
++            "github_url": profile.get("github_url", "")
++        }
++        return {"success": True, "details": details}
++
++    async def review_application(self, company: str, role: str, fields_filled: Dict[str, str], missing_fields: list[str]) -> Dict[str, Any]:
++        """
++        Final safety gate before submission. Outputs the prepared info and pauses.
++        Records the application as 'prepared' in SQLite.
++        """
++        profile = self._load_profile()
++        resume_path = profile.get("resume_path", "None")
++
++        review_msg = (
++            "==============================================\n"
++            "        APPLICATION REVIEW (READY)            \n"
++            "==============================================\n"
++            f"Company: {company}\n"
++            f"Role: {role}\n"
++            f"Resume attached: {resume_path}\n"
++            "Fields Filled:\n"
++        )
++
++        for k, v in fields_filled.items():
++            review_msg += f"  - {k}: {v}\n"
++
++        if missing_fields:
++            review_msg += "\nMissing Fields (Please complete manually if required):\n"
++            for f in missing_fields:
++                review_msg += f"  - {f}\n"
++
++        review_msg += "\n[SAFETY HALT] The application is prepared. Please review the browser window. I will NOT auto-submit. Respond to confirm submission."
++
++        logger.warning(review_msg)
++
++        # Log to DB
++        await create_pending_application(company=company, role=role, status="prepared")
++
++        from app.database.db import log_job_history
++        await log_job_history(company=company, role=role, status="prepared")
++
++        return {"success": True, "message": review_msg}
++
++application_agent = ApplicationAgent()
+diff --git a/backend/app/agents/job_agent.py b/backend/app/agents/job_agent.py
+new file mode 100644
+index 0000000..27f509d
+--- /dev/null
++++ b/backend/app/agents/job_agent.py
+@@ -0,0 +1,165 @@
++"""
++agents/job_agent.py -- High-level Job Application Agent using Playwright capabilities.
++"""
++
++from __future__ import annotations
++import asyncio
++import json
++import logging
++from typing import Dict, Any, List
++from pathlib import Path
++
++from app.models.schemas import JobResult
++from automation.browser_agent import browser_agent
++from app.services.ai_service import ai_service
++from app.database.db import log_job_search, log_job_application
++
++logger = logging.getLogger("job_agent")
++
++class JobAgent:
++    """Agent for searching and applying to jobs via various platforms."""
++
++    async def _extract_jobs_from_page(self, source: str) -> List[JobResult]:
++        """Ask LLM to extract jobs from current page text."""
++        page_state = await browser_agent.get_page_state()
++        content = page_state.get("content", "")
++
++        prompt = f"""
++        Extract job listings from this page text.
++        Return ONLY a JSON list of objects with these exact keys: title, company, location, salary, url, source.
++        If a value is missing, use "Not specified".
++        Source should be '{source}'.
++
++        Page Text:
++        {content[:8000]}
++        """
++
++        try:
++            # Using deepseek or qwen for extraction
++            result_str = await ai_service.chat(message=prompt, history=[])
++            if isinstance(result_str, dict):
++                result_str = result_str.get("content", "[]")
++
++            # Basic parsing of the JSON block
++            import re
++            match = re.search(r"\[.*\]", result_str, re.DOTALL)
++            if match:
++                jobs_data = json.loads(match.group(0))
++                jobs = [JobResult(**j) for j in jobs_data]
++                return jobs
++            return []
++        except Exception as e:
++            logger.error("Failed to extract jobs: %s", e)
++            return []
++
++    async def search_linkedin_jobs(self, query: str, location: str = "") -> Dict[str, Any]:
++        """Search LinkedIn for jobs."""
++        from app.database.db import save_task_checkpoint
++        task_id = f"linkedin_search_{query}_{location}"
++        await save_task_checkpoint(task_id, "searching")
++
++        logger.info(f"Searching LinkedIn for {query} in {location}")
++
++        url_query = query.replace(" ", "%20")
++        url_location = location.replace(" ", "%20")
++        url = f"https://www.linkedin.com/jobs/search?keywords={url_query}&location={url_location}"
++
++        await browser_agent.goto_url(url)
++        # Wait a bit for dynamic content to load
++        await asyncio.sleep(3)
++
++        await save_task_checkpoint(task_id, "extracting")
++        jobs = await self._extract_jobs_from_page(source="LinkedIn")
++        for j in jobs:
++            await log_job_search(j.title, j.company, j.location, j.salary, j.skills, j.url, j.source)
++
++        await save_task_checkpoint(task_id, "completed")
++        return {"success": True, "source": "LinkedIn", "jobs_found": len(jobs), "message": f"Found {len(jobs)} jobs on LinkedIn."}
++
++    async def search_internshala_jobs(self, query: str) -> Dict[str, Any]:
++        """Search Internshala for jobs/internships."""
++        logger.info(f"Searching Internshala for {query}")
++
++        url_query = query.replace(" ", "%20")
++        url = f"https://internshala.com/internships/keywords-{url_query}"
++
++        await browser_agent.goto_url(url)
++        await asyncio.sleep(3)
++
++        jobs = await self._extract_jobs_from_page(source="Internshala")
++        for j in jobs:
++            await log_job_search(j.title, j.company, j.location, j.salary, j.skills, j.url, j.source)
++
++        return {"success": True, "source": "Internshala", "jobs_found": len(jobs), "message": f"Found {len(jobs)} internships on Internshala."}
++
++    async def search_wellfound_jobs(self, query: str) -> Dict[str, Any]:
++        """Search Wellfound (formerly AngelList) for jobs."""
++        logger.info(f"Searching Wellfound for {query}")
++
++        url_query = query.replace(" ", "+")
++        url = f"https://wellfound.com/role/l/{url_query}"
++
++        await browser_agent.goto_url(url)
++        await asyncio.sleep(3)
++
++        jobs = await self._extract_jobs_from_page(source="Wellfound")
++        for j in jobs:
++            await log_job_search(j.title, j.company, j.location, j.salary, j.skills, j.url, j.source)
++
++        return {"success": True, "source": "Wellfound", "jobs_found": len(jobs), "message": f"Found {len(jobs)} jobs on Wellfound."}
++
++    async def search_naukri_jobs(self, query: str) -> Dict[str, Any]:
++        """Search Naukri for jobs."""
++        logger.info(f"Searching Naukri for {query}")
++
++        url_query = query.replace(" ", "-")
++        url = f"https://www.naukri.com/{url_query}-jobs"
++
++        await browser_agent.goto_url(url)
++        await asyncio.sleep(3)
++
++        jobs = await self._extract_jobs_from_page(source="Naukri")
++        for j in jobs:
++            await log_job_search(j.title, j.company, j.location, j.salary, j.skills, j.url, j.source)
++
++        return {"success": True, "source": "Naukri", "jobs_found": len(jobs), "message": f"Found {len(jobs)} jobs on Naukri."}
++
++    async def review_application(self, job_title: str, company: str, fields: Dict[str, str]) -> Dict[str, Any]:
++        """Show required info and request user confirmation before submission."""
++
++        # Load user profile
++        import os
++        profile_path = Path(__file__).resolve().parent.parent.parent / "memory" / "user_profile.json"
++
++        resume_path = "Unknown"
++        if os.path.exists(profile_path):
++            try:
++                with open(profile_path, "r") as f:
++                    profile = json.load(f)
++                    resume_path = profile.get("resume_path", "Unknown")
++            except Exception:
++                pass
++
++        # Create the review summary
++        review_text = (
++            f"=== Application Review ===\n"
++            f"Job: {job_title} at {company}\n"
++            f"Resume Path: {resume_path}\n"
++            f"Fields to be submitted:\n"
++        )
++        for k, v in fields.items():
++            review_text += f"  - {k}: {v}\n"
++
++        review_text += "\nWARNING: I will not submit this application automatically. Please review the browser window and confirm."
++
++        logger.info(review_text)
++
++        # For headless autonomous operation, this returns the prompt to the user interface/LLM context
++        # In a real UI, this would trigger a modal or voice prompt
++        return {
++            "success": True,
++            "action_required": "user_confirmation",
++            "message": review_text
++        }
++
++job_agent = JobAgent()
+diff --git a/backend/app/agents/resume_analyzer.py b/backend/app/agents/resume_analyzer.py
+new file mode 100644
+index 0000000..6c32337
+--- /dev/null
++++ b/backend/app/agents/resume_analyzer.py
+@@ -0,0 +1,70 @@
++"""
++agents/resume_analyzer.py -- Reads and parses PDF resumes to extract user skills and info.
++"""
++
++from __future__ import annotations
++import logging
++from typing import Dict, Any, List
++
++import fitz  # PyMuPDF
++from app.services.ai_service import ai_service
++
++logger = logging.getLogger("resume_analyzer")
++
++class ResumeAnalyzer:
++    """Agent for parsing and analyzing a user's resume PDF."""
++
++    def extract_text_from_pdf(self, pdf_path: str) -> str:
++        """Extract all raw text from a given PDF."""
++        logger.info(f"Extracting text from resume: {pdf_path}")
++        text = ""
++        try:
++            doc = fitz.open(pdf_path)
++            for page in doc:
++                text += page.get_text("text") + "\n"
++            doc.close()
++        except Exception as e:
++            logger.error(f"Failed to extract text from {pdf_path}: {e}")
++        return text
++
++    async def analyze_resume(self, pdf_path: str) -> Dict[str, Any]:
++        """Ask LLM to extract skills, projects, and technologies from the resume text."""
++        raw_text = self.extract_text_from_pdf(pdf_path)
++
++        if not raw_text.strip():
++            return {"success": False, "error": "No text extracted from PDF."}
++
++        prompt = f"""
++        Analyze the following resume text and extract the applicant's key details.
++        Return ONLY a JSON object with these exact keys:
++        - "skills": A list of strings representing general skills.
++        - "technologies": A list of strings representing specific tools, languages, or frameworks.
++        - "projects": A list of strings briefly summarizing major projects.
++
++        Resume Text:
++        ---
++        {raw_text[:8000]}
++        ---
++        """
++
++        try:
++            result_str = await ai_service.chat(message=prompt, history=[])
++            if isinstance(result_str, dict):
++                result_str = result_str.get("content", "{}")
++
++            import re, json
++            match = re.search(r"\{.*\}", result_str, re.DOTALL)
++            if match:
++                data = json.loads(match.group(0))
++                return {
++                    "success": True,
++                    "skills": data.get("skills", []),
++                    "technologies": data.get("technologies", []),
++                    "projects": data.get("projects", [])
++                }
++            return {"success": False, "error": "Could not parse JSON from LLM response."}
++        except Exception as e:
++            logger.error("Failed to analyze resume: %s", e)
++            return {"success": False, "error": str(e)}
++
++resume_analyzer = ResumeAnalyzer()
+diff --git a/backend/app/agents/youtube_agent.py b/backend/app/agents/youtube_agent.py
+new file mode 100644
+index 0000000..9b9f774
+--- /dev/null
++++ b/backend/app/agents/youtube_agent.py
+@@ -0,0 +1,65 @@
++"""
++agents/youtube_agent.py -- High-level YouTube Agent using Playwright capabilities.
++"""
++
++from __future__ import annotations
++import asyncio
++import logging
++from typing import Dict, Any
++
++from automation.browser_agent import browser_agent
++
++logger = logging.getLogger("youtube_agent")
++
++class YouTubeAgent:
++    """Agent for searching and interacting with YouTube."""
++
++    async def search_youtube(self, query: str) -> Dict[str, Any]:
++        """Search YouTube for a specific query."""
++        logger.info(f"Searching YouTube for {query}")
++
++        import urllib.parse
++        encoded_query = urllib.parse.quote_plus(query)
++        url = f"https://www.youtube.com/results?search_query={encoded_query}"
++
++        return await browser_agent.goto_url(url)
++
++    async def open_video(self, video_id_or_url: str) -> Dict[str, Any]:
++        """Open a specific YouTube video."""
++        logger.info(f"Opening YouTube video {video_id_or_url}")
++
++        if "youtube.com" in video_id_or_url or "youtu.be" in video_id_or_url:
++            url = video_id_or_url
++        else:
++            url = f"https://www.youtube.com/watch?v={video_id_or_url}"
++
++        return await browser_agent.goto_url(url)
++
++    async def play_video(self) -> Dict[str, Any]:
++        """Play or pause the current video by pressing 'k'."""
++        logger.info("Toggling play/pause on YouTube")
++
++        # In YouTube, pressing 'k' toggles play/pause reliably
++        try:
++            # We can use playwright's keyboard press through the browser_agent if we add it,
++            # but since browser_agent might not expose direct keyboard yet, we can evaluate JS:
++            if browser_agent._page:
++                await browser_agent._page.keyboard.press("k")
++                return {"success": True, "message": "Toggled play/pause."}
++            return {"success": False, "error": "No active page."}
++        except Exception as e:
++            logger.error("Failed to play video: %s", e)
++            return {"success": False, "error": str(e)}
++
++    async def open_playlist(self, playlist_id_or_url: str) -> Dict[str, Any]:
++        """Open a specific YouTube playlist."""
++        logger.info(f"Opening YouTube playlist {playlist_id_or_url}")
++
++        if "youtube.com/playlist" in playlist_id_or_url:
++            url = playlist_id_or_url
++        else:
++            url = f"https://www.youtube.com/playlist?list={playlist_id_or_url}"
++
++        return await browser_agent.goto_url(url)
++
++youtube_agent = YouTubeAgent()
+diff --git a/backend/app/core/ollama_client.py b/backend/app/core/ollama_client.py
+index 22500fa..ecca15f 100644
+--- a/backend/app/core/ollama_client.py
++++ b/backend/app/core/ollama_client.py
+@@ -123,12 +123,15 @@ class OllamaClient:
+     # ─────────────────────────────────────────────────────────────
+     async def chat(
+         self,
+-        messages: List[Dict[str, str]],
++        messages: List[Dict[str, Any]],
+         model: str = settings.DEFAULT_MODEL,
+         stream: bool = False,
+-    ) -> str:
+-        """Send a chat (multi-turn) request and return the assistant reply."""
++        tools: Optional[List[Dict[str, Any]]] = None,
++    ) -> Dict[str, Any]:
++        """Send a chat (multi-turn) request and return the assistant reply, including tool calls."""
+         payload = {"model": model, "messages": messages, "stream": stream}
++        if tools:
++            payload["tools"] = tools
+
+         async with aiohttp.ClientSession() as session:
+             async with session.post(
+@@ -138,7 +141,8 @@ class OllamaClient:
+             ) as resp:
+                 resp.raise_for_status()
+                 data = await resp.json()
+-                return data.get("message", {}).get("content", "")
++                # Return the entire message object so tool_calls can be inspected
++                return data.get("message", {})
+
+     async def chat_stream(
+         self,
+diff --git a/backend/app/database/db.py b/backend/app/database/db.py
+index fbd5871..edc7195 100644
+--- a/backend/app/database/db.py
++++ b/backend/app/database/db.py
+@@ -66,6 +66,93 @@ CREATE TABLE IF NOT EXISTS files_history (
+ );
+ """
+
++CREATE_JOB_SEARCH_HISTORY = """
++CREATE TABLE IF NOT EXISTS job_search_history (
++    id          INTEGER PRIMARY KEY AUTOINCREMENT,
++    title       TEXT NOT NULL,
++    company     TEXT,
++    location    TEXT,
++    salary      TEXT,
++    skills      TEXT,
++    url         TEXT,
++    source      TEXT,
++    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
++);
++"""
++
++CREATE_SAVED_JOBS = """
++CREATE TABLE IF NOT EXISTS saved_jobs (
++    id          INTEGER PRIMARY KEY AUTOINCREMENT,
++    title       TEXT NOT NULL,
++    company     TEXT,
++    location    TEXT,
++    salary      TEXT,
++    skills      TEXT,
++    url         TEXT,
++    source      TEXT,
++    score       REAL DEFAULT 0.0,
++    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
++);
++"""
++
++CREATE_JOB_APPLICATION_HISTORY = """
++CREATE TABLE IF NOT EXISTS job_application_history (
++    id          INTEGER PRIMARY KEY AUTOINCREMENT,
++    job_id      INTEGER,
++    title       TEXT NOT NULL,
++    company     TEXT,
++    url         TEXT,
++    status      TEXT DEFAULT 'pending',
++    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
++);
++"""
++
++CREATE_PENDING_APPLICATIONS = """
++CREATE TABLE IF NOT EXISTS pending_applications (
++    id          INTEGER PRIMARY KEY AUTOINCREMENT,
++    company     TEXT NOT NULL,
++    role        TEXT NOT NULL,
++    status      TEXT DEFAULT 'prepared', -- prepared | approved | submitted | failed
++    timestamp   DATETIME DEFAULT CURRENT_TIMESTAMP
++);
++"""
++
++CREATE_USER_PREFERENCES = """
++CREATE TABLE IF NOT EXISTS user_preferences (
++    id          INTEGER PRIMARY KEY AUTOINCREMENT,
++    key         TEXT UNIQUE NOT NULL,
++    value       TEXT NOT NULL
++);
++"""
++
++CREATE_JOB_HISTORY = """
++CREATE TABLE IF NOT EXISTS job_history (
++    id          INTEGER PRIMARY KEY AUTOINCREMENT,
++    company     TEXT NOT NULL,
++    role        TEXT NOT NULL,
++    status      TEXT NOT NULL,
++    timestamp   DATETIME DEFAULT CURRENT_TIMESTAMP
++);
++"""
++
++CREATE_TASK_HISTORY = """
++CREATE TABLE IF NOT EXISTS task_history (
++    id          INTEGER PRIMARY KEY AUTOINCREMENT,
++    task        TEXT NOT NULL,
++    result      TEXT NOT NULL,
++    timestamp   DATETIME DEFAULT CURRENT_TIMESTAMP
++);
++"""
++
++CREATE_TASK_CHECKPOINTS = """
++CREATE TABLE IF NOT EXISTS task_checkpoints (
++    id          INTEGER PRIMARY KEY AUTOINCREMENT,
++    task_id     TEXT UNIQUE NOT NULL,
++    state       TEXT NOT NULL, -- e.g., "searching", "extracting", "completed"
++    context     TEXT,          -- JSON string of context/memory
++    timestamp   DATETIME DEFAULT CURRENT_TIMESTAMP
++);
++"""
+
+ async def init_db() -> None:
+     """Create all tables if they do not exist."""
+@@ -74,6 +161,14 @@ async def init_db() -> None:
+         await db.execute(CREATE_AI_LOGS)
+         await db.execute(CREATE_ACTIVITY)
+         await db.execute(CREATE_FILES_HISTORY)
++        await db.execute(CREATE_JOB_SEARCH_HISTORY)
++        await db.execute(CREATE_SAVED_JOBS)
++        await db.execute(CREATE_JOB_APPLICATION_HISTORY)
++        await db.execute(CREATE_PENDING_APPLICATIONS)
++        await db.execute(CREATE_USER_PREFERENCES)
++        await db.execute(CREATE_JOB_HISTORY)
++        await db.execute(CREATE_TASK_HISTORY)
++        await db.execute(CREATE_TASK_CHECKPOINTS)
+         await db.commit()
+     logger.info("Database initialised at %s", DB_PATH.resolve())
+
+@@ -91,6 +186,55 @@ async def create_task(title: str, description: str = "", priority: int = 3) -> i
+         await db.commit()
+         return cursor.lastrowid
+
++async def create_pending_application(company: str, role: str, status: str = 'prepared') -> int:
++    async with aiosqlite.connect(DB_PATH) as db:
++        cursor = await db.execute(
++            "INSERT INTO pending_applications (company, role, status) VALUES (?, ?, ?)",
++            (company, role, status),
++        )
++        await db.commit()
++        return cursor.lastrowid
++
++async def update_pending_application_status(app_id: int, status: str) -> None:
++    async with aiosqlite.connect(DB_PATH) as db:
++        await db.execute(
++            "UPDATE pending_applications SET status = ?, timestamp = CURRENT_TIMESTAMP WHERE id = ?",
++            (status, app_id),
++        )
++        await db.commit()
++
++async def log_job_history(company: str, role: str, status: str) -> None:
++    async with aiosqlite.connect(DB_PATH) as db:
++        await db.execute(
++            "INSERT INTO job_history (company, role, status) VALUES (?, ?, ?)",
++            (company, role, status),
++        )
++        await db.commit()
++
++async def log_task_history(task: str, result: str) -> None:
++    async with aiosqlite.connect(DB_PATH) as db:
++        await db.execute(
++            "INSERT INTO task_history (task, result) VALUES (?, ?)",
++            (task, result),
++        )
++        await db.commit()
++
++async def save_task_checkpoint(task_id: str, state: str, context: str = "{}") -> None:
++    async with aiosqlite.connect(DB_PATH) as db:
++        await db.execute(
++            "INSERT OR REPLACE INTO task_checkpoints (task_id, state, context) VALUES (?, ?, ?)",
++            (task_id, state, context),
++        )
++        await db.commit()
++
++async def load_task_checkpoint(task_id: str) -> dict | None:
++    async with aiosqlite.connect(DB_PATH) as db:
++        cursor = await db.execute("SELECT state, context FROM task_checkpoints WHERE task_id = ?", (task_id,))
++        row = await cursor.fetchone()
++        if row:
++            return {"state": row[0], "context": row[1]}
++        return None
++
+
+ async def list_tasks(status: str | None = None) -> list[dict]:
+     async with aiosqlite.connect(DB_PATH) as db:
+@@ -142,3 +286,38 @@ async def log_activity(action: str, details: str = "") -> None:
+             (action, details),
+         )
+         await db.commit()
++
++# ══════════════════════════════════════════════════════════════════
++#  Job Agent helpers
++# ══════════════════════════════════════════════════════════════════
++
++import json
++
++async def log_job_search(title: str, company: str, location: str, salary: str, skills: list[str], url: str, source: str) -> int:
++    async with aiosqlite.connect(DB_PATH) as db:
++        skills_str = json.dumps(skills)
++        cursor = await db.execute(
++            "INSERT INTO job_search_history (title, company, location, salary, skills, url, source) VALUES (?, ?, ?, ?, ?, ?, ?)",
++            (title, company, location, salary, skills_str, url, source),
++        )
++        await db.commit()
++        return cursor.lastrowid
++
++async def save_job(title: str, company: str, location: str, salary: str, skills: list[str], url: str, source: str, score: float = 0.0) -> int:
++    async with aiosqlite.connect(DB_PATH) as db:
++        skills_str = json.dumps(skills)
++        cursor = await db.execute(
++            "INSERT INTO saved_jobs (title, company, location, salary, skills, url, source, score) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
++            (title, company, location, salary, skills_str, url, source, score),
++        )
++        await db.commit()
++        return cursor.lastrowid
++
++async def log_job_application(job_id: int, title: str, company: str, url: str, status: str = 'pending') -> int:
++    async with aiosqlite.connect(DB_PATH) as db:
++        cursor = await db.execute(
++            "INSERT INTO job_application_history (job_id, title, company, url, status) VALUES (?, ?, ?, ?, ?)",
++            (job_id, title, company, url, status),
++        )
++        await db.commit()
++        return cursor.lastrowid
+diff --git a/backend/app/main.py b/backend/app/main.py
+index 01e2b21..8bc49a2 100644
+--- a/backend/app/main.py
++++ b/backend/app/main.py
+@@ -27,6 +27,9 @@ async def lifespan(app: FastAPI):
+     logger.info("Ollama URL  : %s", settings.OLLAMA_BASE_URL)
+     logger.info("Default model: %s", settings.DEFAULT_MODEL)
+
++    from app.system.diagnostics import run_startup_diagnostics
++    await run_startup_diagnostics()
++
+     # Start the screen monitoring background task
+     screen_task = asyncio.create_task(screen_monitoring_loop())
+
+diff --git a/backend/app/models/schemas.py b/backend/app/models/schemas.py
+index 208c1ca..e5b327f 100644
+--- a/backend/app/models/schemas.py
++++ b/backend/app/models/schemas.py
+@@ -145,6 +145,21 @@ class WorkspaceInfo(BaseModel):
+     languages: List[str]
+
+
++# ══════════════════════════════════════════════════════════════════
++#  Job Agent
++# ══════════════════════════════════════════════════════════════════
++
++class JobResult(BaseModel):
++    title: str
++    company: str
++    location: str
++    salary: str
++    skills: List[str] = []
++    source: str
++    url: str
++    discovered_at: Optional[str] = None
++
++
+ # ══════════════════════════════════════════════════════════════════
+ #  Generic responses
+ # ══════════════════════════════════════════════════════════════════
+diff --git a/backend/app/services/ai_service.py b/backend/app/services/ai_service.py
+index 1ecf938..0f67f09 100644
+--- a/backend/app/services/ai_service.py
++++ b/backend/app/services/ai_service.py
+@@ -50,8 +50,12 @@ class AIService:
+         message: str,
+         history: List[ChatMessage],
+         model: Optional[str] = None,
+-    ) -> str:
+-        """Single-turn chat with conversation history."""
++        tools: Optional[list] = None,
++    ) -> str | dict:
++        """Single-turn chat with conversation history. Returns str if no tools, or dict if tools used."""
++        import time
++        from app.utils.performance import performance_monitor
++
+         model = model or settings.DEFAULT_MODEL
+
+         messages = [{"role": "system", "content": _CHAT_SYSTEM}]
+@@ -59,9 +63,14 @@ class AIService:
+             messages.append({"role": h.role, "content": h.content})
+         messages.append({"role": "user", "content": message})
+
+-        response = await ollama.chat(messages=messages, model=model)
+-        logger.debug("Chat response len=%d", len(response))
+-        return response
++        start = time.time()
++        response = await ollama.chat(messages=messages, model=model, tools=tools)
++        performance_monitor.log_metric("llm_response_times_ms", (time.time() - start) * 1000)
++
++        if tools and response.get("tool_calls"):
++            return response
++
++        return response.get("content", "")
+
+     async def chat_stream(
+         self,
+diff --git a/backend/app/services/job_scoring.py b/backend/app/services/job_scoring.py
+new file mode 100644
+index 0000000..0894968
+--- /dev/null
++++ b/backend/app/services/job_scoring.py
+@@ -0,0 +1,88 @@
++"""
++services/job_scoring.py -- Scores job listings against user profile and resume data.
++"""
++
++from __future__ import annotations
++import json
++import logging
++from pathlib import Path
++from typing import Dict, Any
++
++from app.models.schemas import JobResult
++from app.services.ai_service import ai_service
++from app.agents.resume_analyzer import resume_analyzer
++
++logger = logging.getLogger("job_scoring")
++
++class JobScorer:
++    """Service to score JobResults against the user's profile and resume."""
++
++    def __init__(self):
++        self.profile_path = Path(__file__).resolve().parent.parent.parent / "memory" / "user_profile.json"
++
++    async def score_job(self, job: JobResult) -> Dict[str, Any]:
++        """
++        Evaluate the job against the user profile and resume (if available).
++        Returns a dictionary with the score (0.0 to 10.0) and reasoning.
++        """
++
++        # 1. Load basic user profile
++        user_profile = {}
++        if self.profile_path.exists():
++            try:
++                with open(self.profile_path, "r") as f:
++                    user_profile = json.load(f)
++            except Exception as e:
++                logger.warning(f"Could not load user profile: {e}")
++
++        # 2. Analyze resume if path exists
++        resume_data = {}
++        resume_path = user_profile.get("resume_path")
++        if resume_path and Path(resume_path).exists():
++            res = await resume_analyzer.analyze_resume(resume_path)
++            if res.get("success"):
++                resume_data = res
++
++        # 3. Ask LLM to score the job
++        prompt = f"""
++        You are an expert technical recruiter matching a candidate to a job.
++
++        Job Details:
++        - Title: {job.title}
++        - Company: {job.company}
++        - Location: {job.location}
++        - Required Skills: {', '.join(job.skills) if job.skills else 'Not specified'}
++
++        Candidate Profile:
++        - Stated Skills: {', '.join(user_profile.get('skills', []))}
++
++        Candidate Resume Data:
++        - Extracted Technologies: {', '.join(resume_data.get('technologies', []))}
++        - Extracted Projects: {', '.join(resume_data.get('projects', []))}
++
++        Based on how well the candidate's profile and resume match the job details, provide a fit score from 0.0 to 10.0.
++        Return ONLY a JSON object with:
++        - "score": A float between 0.0 and 10.0.
++        - "reasoning": A short string explaining the score.
++        """
++
++        try:
++            result_str = await ai_service.chat(message=prompt, history=[])
++            if isinstance(result_str, dict):
++                result_str = result_str.get("content", "{}")
++
++            import re
++            match = re.search(r"\{.*\}", result_str, re.DOTALL)
++            if match:
++                data = json.loads(match.group(0))
++                return {
++                    "success": True,
++                    "score": float(data.get("score", 0.0)),
++                    "reasoning": data.get("reasoning", "No reasoning provided.")
++                }
++            return {"success": False, "error": "Could not parse scoring JSON.", "score": 0.0}
++        except Exception as e:
++            logger.error("Failed to score job: %s", e)
++            return {"success": False, "error": str(e), "score": 0.0}
++
++job_scorer = JobScorer()
+diff --git a/backend/app/services/memory_manager.py b/backend/app/services/memory_manager.py
+new file mode 100644
+index 0000000..b1d24a8
+--- /dev/null
++++ b/backend/app/services/memory_manager.py
+@@ -0,0 +1,119 @@
++"""
++services/memory_manager.py -- Agent Memory Management.
++Handles user preferences, long-term recall, and automatic preference learning.
++"""
++
++from __future__ import annotations
++import json
++import logging
++from typing import Dict, Any, List
++import aiosqlite
++from pathlib import Path
++
++from app.database.db import DB_PATH
++from app.services.ai_service import ai_service
++
++logger = logging.getLogger("memory_manager")
++
++class MemoryManager:
++    """Manages long-term context, preferences, and task histories for JARVIS."""
++
++    def __init__(self):
++        self.profile_path = Path(__file__).resolve().parent.parent.parent / "memory" / "user_profile.json"
++
++    async def save_memory(self, key: str, value: str) -> None:
++        """Save a user preference key-value pair to SQLite."""
++        async with aiosqlite.connect(DB_PATH) as db:
++            await db.execute(
++                "INSERT OR REPLACE INTO user_preferences (key, value) VALUES (?, ?)",
++                (key, value)
++            )
++            await db.commit()
++
++    async def load_memory(self, key: str) -> str | None:
++        """Load a specific memory key."""
++        async with aiosqlite.connect(DB_PATH) as db:
++            cursor = await db.execute("SELECT value FROM user_preferences WHERE key = ?", (key,))
++            row = await cursor.fetchone()
++            return row[0] if row else None
++
++    async def search_memory(self) -> Dict[str, str]:
++        """Fetch all user preferences."""
++        prefs = {}
++        async with aiosqlite.connect(DB_PATH) as db:
++            cursor = await db.execute("SELECT key, value FROM user_preferences")
++            rows = await cursor.fetchall()
++            for r in rows:
++                prefs[r[0]] = r[1]
++        return prefs
++
++    async def update_memory(self, key: str, value: str) -> None:
++        """Alias for save_memory."""
++        await self.save_memory(key, value)
++
++    def load_user_profile(self) -> Dict[str, Any]:
++        """Load static user profile JSON."""
++        if self.profile_path.exists():
++            try:
++                with open(self.profile_path, "r") as f:
++                    return json.load(f)
++            except Exception as e:
++                logger.error(f"Failed to load user profile: {e}")
++        return {}
++
++    async def get_recent_job_history(self, limit: int = 5) -> List[Dict[str, str]]:
++        """Fetch recent job applications/statuses."""
++        history = []
++        async with aiosqlite.connect(DB_PATH) as db:
++            cursor = await db.execute("SELECT company, role, status FROM job_history ORDER BY timestamp DESC LIMIT ?", (limit,))
++            rows = await cursor.fetchall()
++            for r in rows:
++                history.append({"company": r[0], "role": r[1], "status": r[2]})
++        return history
++
++    async def get_recent_task_history(self, limit: int = 5) -> List[Dict[str, str]]:
++        """Fetch recent autonomous tasks completed."""
++        history = []
++        async with aiosqlite.connect(DB_PATH) as db:
++            cursor = await db.execute("SELECT task, result FROM task_history ORDER BY timestamp DESC LIMIT ?", (limit,))
++            rows = await cursor.fetchall()
++            for r in rows:
++                history.append({"task": r[0], "result": r[1]})
++        return history
++
++    async def learn_preferences(self, action_history: List[Dict[str, Any]]) -> None:
++        """
++        Analyze a list of recent actions to infer if the user has repeated preferences.
++        E.g. repeatedly searching "Remote React Frontend".
++        """
++        if not action_history:
++            return
++
++        actions_str = json.dumps(action_history, indent=2)
++        prompt = f"""
++        Analyze the following recent actions taken by the user or the agent.
++        Identify any recurring preferences, keywords, or requirements (e.g. they always search for 'Remote' or 'React', or prefer 'Frontend' roles).
++        Return ONLY a JSON dictionary of key-value pairs representing these preferences.
++        If nothing obvious stands out, return an empty dictionary {{}}.
++
++        Actions:
++        {actions_str}
++        """
++
++        try:
++            result_str = await ai_service.chat(message=prompt, history=[])
++            if isinstance(result_str, dict):
++                result_str = result_str.get("content", "{}")
++
++            import re
++            match = re.search(r"\{.*\}", result_str, re.DOTALL)
++            if match:
++                prefs = json.loads(match.group(0))
++                for k, v in prefs.items():
++                    # We save the learned preference
++                    await self.save_memory(f"learned_pref_{k}", str(v))
++                    logger.info(f"Learned new preference: {k} = {v}")
++        except Exception as e:
++            logger.error(f"Failed to learn preferences: {e}")
++
++memory_manager = MemoryManager()
+diff --git a/backend/app/services/tool_health.py b/backend/app/services/tool_health.py
+new file mode 100644
+index 0000000..c981c61
+--- /dev/null
++++ b/backend/app/services/tool_health.py
+@@ -0,0 +1,46 @@
++"""
++services/tool_health.py – Tracks the status and availability of all major sub-systems.
++"""
++
++from __future__ import annotations
++import logging
++from typing import Dict, Any
++from datetime import datetime
++
++logger = logging.getLogger("tool_health")
++
++class ToolHealthManager:
++    def __init__(self):
++        self.subsystems = {
++            "browser": {"status": "unknown", "last_error": None, "last_success": None, "available": False},
++            "voice": {"status": "unknown", "last_error": None, "last_success": None, "available": False},
++            "memory": {"status": "unknown", "last_error": None, "last_success": None, "available": False},
++            "ollama": {"status": "unknown", "last_error": None, "last_success": None, "available": False},
++            "database": {"status": "unknown", "last_error": None, "last_success": None, "available": False},
++        }
++
++    def report_success(self, subsystem: str) -> None:
++        """Mark a subsystem as healthy and available."""
++        if subsystem in self.subsystems:
++            self.subsystems[subsystem]["status"] = "healthy"
++            self.subsystems[subsystem]["available"] = True
++            self.subsystems[subsystem]["last_success"] = datetime.utcnow().isoformat()
++            self.subsystems[subsystem]["last_error"] = None
++
++    def report_error(self, subsystem: str, error_msg: str) -> None:
++        """Mark a subsystem as degraded or unavailable."""
++        if subsystem in self.subsystems:
++            self.subsystems[subsystem]["status"] = "degraded"
++            self.subsystems[subsystem]["available"] = False
++            self.subsystems[subsystem]["last_error"] = f"{datetime.utcnow().isoformat()}: {error_msg}"
++            logger.error(f"Health Check Failed - {subsystem.upper()}: {error_msg}")
++
++    def get_health(self) -> Dict[str, Any]:
++        """Get the current state of all subsystems."""
++        return self.subsystems
++
++    def is_available(self, subsystem: str) -> bool:
++        """Check if a specific tool/subsystem is safe to use."""
++        return self.subsystems.get(subsystem, {}).get("available", False)
++
++tool_health = ToolHealthManager()
+diff --git a/backend/app/services/voice_manager.py b/backend/app/services/voice_manager.py
+new file mode 100644
+index 0000000..5581084
+--- /dev/null
++++ b/backend/app/services/voice_manager.py
+@@ -0,0 +1,44 @@
++"""
++services/voice_manager.py -- High-level interface for local Voice IO.
++Orchestrates Speech-to-Text (Whisper.cpp) and Text-to-Speech (Piper).
++"""
++
++import logging
++from typing import Optional, Callable
++from voice.voice_input import continuous_listen
++from voice.voice_output import speak_async, stop_speaking, is_speaking
++
++logger = logging.getLogger("voice_manager")
++
++class VoiceManager:
++    """Orchestrates listening and speaking completely locally."""
++
++    def listen(self, callback: Callable[[str], None], wake_words: Optional[list[str]] = None) -> None:
++        """
++        Start the continuous listening loop in a background thread.
++        Triggers `callback` when a wake word is detected and command is transcribed.
++        """
++        logger.info("Starting local voice listener loop.")
++        continuous_listen(on_command=callback, wake_words=wake_words)
++
++    def transcribe(self, audio_data: bytes) -> str:
++        """
++        (Optional) Expose a direct manual transcribe method if needed.
++        Currently continuous_listen handles recording and transcription natively.
++        """
++        pass
++
++    def speak(self, text: str) -> None:
++        """Speak text aloud using the local Piper TTS model."""
++        logger.info(f"Speaking: {text}")
++        speak_async(text)
++
++    def stop(self) -> None:
++        """Halt any current speech."""
++        stop_speaking()
++
++    def is_active(self) -> bool:
++        """Return True if TTS is currently talking."""
++        return is_speaking()
++
++voice_manager = VoiceManager()
+diff --git a/backend/app/system/diagnostics.py b/backend/app/system/diagnostics.py
+new file mode 100644
+index 0000000..550ea43
+--- /dev/null
++++ b/backend/app/system/diagnostics.py
+@@ -0,0 +1,78 @@
++"""
++system/diagnostics.py -- Runs dependency and health verification checks on startup.
++"""
++
++from __future__ import annotations
++import asyncio
++import logging
++from pathlib import Path
++from app.services.tool_health import tool_health
++
++logger = logging.getLogger("diagnostics")
++
++async def run_startup_diagnostics() -> bool:
++    """Verifies that all core dependencies are installed and available."""
++    logger.info("Running JARVIS Startup Diagnostics...")
++    all_clear = True
++
++    # 1. Database Check
++    try:
++        from app.database.db import init_db
++        await init_db()
++        tool_health.report_success("database")
++        logger.info("[OK] SQLite Database initialized.")
++    except Exception as e:
++        tool_health.report_error("database", str(e))
++        logger.error(f"[FAIL] SQLite Database: {e}")
++        all_clear = False
++
++    # 2. Ollama Check
++    try:
++        import aiohttp
++        from app.config import settings
++        async with aiohttp.ClientSession() as session:
++            async with session.get(f"{settings.OLLAMA_BASE_URL}/api/tags", timeout=5) as resp:
++                if resp.status == 200:
++                    tool_health.report_success("ollama")
++                    logger.info(f"[OK] Ollama reachable at {settings.OLLAMA_BASE_URL}")
++                else:
++                    raise Exception(f"HTTP {resp.status}")
++    except Exception as e:
++        tool_health.report_error("ollama", str(e))
++        logger.error(f"[FAIL] Ollama: {e}")
++        all_clear = False
++
++    # 3. Playwright Check
++    try:
++        import playwright
++        tool_health.report_success("browser")
++        logger.info("[OK] Playwright module found.")
++    except Exception as e:
++        tool_health.report_error("browser", "Playwright not installed")
++        logger.error(f"[FAIL] Playwright: {e}")
++        all_clear = False
++
++    # 4. Voice Check
++    try:
++        import piper
++        from faster_whisper import WhisperModel
++        tool_health.report_success("voice")
++        logger.info("[OK] Piper TTS and Faster-Whisper modules found.")
++    except Exception as e:
++        tool_health.report_error("voice", str(e))
++        logger.error(f"[FAIL] Voice dependencies missing: {e}")
++        # Not marking all_clear=False since voice might be optional for text-only workflows
++
++    # 5. Directory Check
++    directories = ["memory", "screenshots", "chrome_profile", "logs"]
++    root = Path(__file__).resolve().parent.parent.parent
++    for d in directories:
++        dir_path = root / d
++        dir_path.mkdir(exist_ok=True)
++
++    if all_clear:
++        logger.info("Diagnostics Complete. All core systems GO.")
++    else:
++        logger.warning("Diagnostics Complete with WARNINGS. Some sub-systems are degraded.")
++
++    return all_clear
+diff --git a/backend/app/utils/logger.py b/backend/app/utils/logger.py
+index 23de0a4..428e393 100644
+--- a/backend/app/utils/logger.py
++++ b/backend/app/utils/logger.py
+@@ -9,9 +9,31 @@ from pathlib import Path
+ from app.config import settings
+
+
++import json
++import datetime
++
+ _FMT = "%(asctime)s  %(levelname)-8s  [%(name)s]  %(message)s"
+ _DATE_FMT = "%Y-%m-%d %H:%M:%S"
+
++class StructuredJSONFormatter(logging.Formatter):
++    """Format logs as structured JSON."""
++    def format(self, record: logging.LogRecord) -> str:
++        log_record = {
++            "timestamp": datetime.datetime.utcfromtimestamp(record.created).isoformat() + "Z",
++            "module": record.name,
++            "level": record.levelname,
++            "message": record.getMessage(),
++        }
++
++        # Attach any extra kwargs (like task_id, tool, duration) if provided
++        if hasattr(record, "task_id"):
++            log_record["task_id"] = record.task_id
++        if hasattr(record, "tool"):
++            log_record["tool"] = record.tool
++        if hasattr(record, "duration_ms"):
++            log_record["duration_ms"] = record.duration_ms
++
++        return json.dumps(log_record)
+
+ def get_logger(name: str) -> logging.Logger:
+     """Return a configured logger for the given module name."""
+@@ -22,17 +44,17 @@ def get_logger(name: str) -> logging.Logger:
+
+     logger.setLevel(settings.LOG_LEVEL)
+
+-    # ── Console handler ───────────────────────────────────────────
++    # ── Console handler (Standard Text) ───────────────────────────
+     ch = logging.StreamHandler(sys.stdout)
+     ch.setFormatter(logging.Formatter(_FMT, datefmt=_DATE_FMT))
+     logger.addHandler(ch)
+
+-    # ── File handler (optional) ───────────────────────────────────
++    # ── File handler (Structured JSON) ────────────────────────────
+     log_dir = Path(settings.LOG_DIR)
+     try:
+         log_dir.mkdir(parents=True, exist_ok=True)
+-        fh = logging.FileHandler(log_dir / "backend.log", encoding="utf-8")
+-        fh.setFormatter(logging.Formatter(_FMT, datefmt=_DATE_FMT))
++        fh = logging.FileHandler(log_dir / "backend.jsonl", encoding="utf-8")
++        fh.setFormatter(StructuredJSONFormatter())
+         logger.addHandler(fh)
+     except Exception:  # don't crash if log dir is read-only
+         pass
+diff --git a/backend/app/utils/performance.py b/backend/app/utils/performance.py
+new file mode 100644
+index 0000000..a0b53cd
+--- /dev/null
++++ b/backend/app/utils/performance.py
+@@ -0,0 +1,50 @@
++"""
++utils/performance.py - Monitors subsystem performance natively.
++"""
++
++from __future__ import annotations
++import json
++import logging
++from pathlib import Path
++from datetime import datetime
++
++logger = logging.getLogger("performance")
++
++REPORT_FILE = Path(__file__).resolve().parent.parent.parent / "logs" / "performance_report.json"
++
++class PerformanceMonitor:
++    def __init__(self):
++        self.metrics = {
++            "planning_times_ms": [],
++            "tool_execution_times_ms": [],
++            "browser_response_times_ms": [],
++            "llm_response_times_ms": []
++        }
++
++    def log_metric(self, category: str, duration_ms: float) -> None:
++        """Log a specific metric category."""
++        if category in self.metrics:
++            self.metrics[category].append(duration_ms)
++            # Keep array sizes manageable
++            if len(self.metrics[category]) > 1000:
++                self.metrics[category].pop(0)
++
++    def generate_report(self) -> None:
++        """Write out the aggregated averages to a JSON file."""
++        report = {"timestamp": datetime.utcnow().isoformat() + "Z", "averages_ms": {}}
++
++        for k, v in self.metrics.items():
++            if v:
++                report["averages_ms"][k] = sum(v) / len(v)
++            else:
++                report["averages_ms"][k] = 0.0
++
++        try:
++            REPORT_FILE.parent.mkdir(parents=True, exist_ok=True)
++            with open(REPORT_FILE, "w") as f:
++                json.dump(report, f, indent=4)
++            logger.info("Performance report generated.")
++        except Exception as e:
++            logger.error(f"Failed to save performance report: {e}")
++
++performance_monitor = PerformanceMonitor()
+diff --git a/backend/app/utils/retry.py b/backend/app/utils/retry.py
+new file mode 100644
+index 0000000..1ee52dd
+--- /dev/null
++++ b/backend/app/utils/retry.py
+@@ -0,0 +1,39 @@
++"""
++utils/retry.py - A generic async retry framework.
++"""
++
++from __future__ import annotations
++import asyncio
++import logging
++from typing import Callable, Any
++
++logger = logging.getLogger("retry_framework")
++
++def async_retry(max_retries: int = 3, initial_backoff: float = 1.0, exceptions: tuple = (Exception,)):
++    """
++    Decorator for async functions that implements exponential backoff.
++
++    Args:
++        max_retries: Maximum number of times to retry before raising.
++        initial_backoff: Initial sleep duration in seconds. Doubles on each retry.
++        exceptions: Tuple of exception classes to catch and retry on.
++    """
++    def decorator(func: Callable) -> Callable:
++        async def wrapper(*args: Any, **kwargs: Any) -> Any:
++            retries = 0
++            backoff = initial_backoff
++
++            while True:
++                try:
++                    return await func(*args, **kwargs)
++                except exceptions as e:
++                    retries += 1
++                    if retries > max_retries:
++                        logger.error(f"[{func.__name__}] Failed after {max_retries} retries: {e}")
++                        raise
++
++                    logger.warning(f"[{func.__name__}] Attempt {retries}/{max_retries} failed: {e}. Retrying in {backoff}s...")
++                    await asyncio.sleep(backoff)
++                    backoff *= 2
++        return wrapper
++    return decorator
+diff --git a/backend/automation/browser_agent.py b/backend/automation/browser_agent.py
+new file mode 100644
+index 0000000..ab7b0ce
+--- /dev/null
++++ b/backend/automation/browser_agent.py
+@@ -0,0 +1,182 @@
++"""
++automation/browser_agent.py -- General-purpose Playwright browser automation agent.
++"""
++
++from __future__ import annotations
++import asyncio
++import logging
++from typing import Dict, Any, Optional
++from pathlib import Path
++from playwright.async_api import async_playwright, Page, Browser, Playwright, BrowserContext
++
++logger = logging.getLogger("browser_agent")
++
++SCREENSHOT_DIR = Path(__file__).resolve().parent.parent.parent / "screenshots"
++SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
++
++class BrowserAgent:
++    def __init__(self):
++        self._playwright: Optional[Playwright] = None
++        self._browser: Optional[Browser] = None
++        self._context: Optional[BrowserContext] = None
++        self._page: Optional[Page] = None
++        self._lock: Optional[asyncio.Lock] = None
++
++    async def _ensure_started(self):
++        """Starts Playwright and the browser if not already running or closed."""
++        if self._lock is None:
++            self._lock = asyncio.Lock()
++
++        async with self._lock:
++            # Check if page is closed manually
++            if self._page and self._page.is_closed():
++                logger.warning("Browser page was closed. Recreating context...")
++                self._page = None
++                self._context = None
++
++            if self._playwright is None:
++                logger.info("Starting Playwright...")
++                self._playwright = await async_playwright().start()
++                self._browser = await self._playwright.chromium.launch(headless=False)
++
++            if self._context is None:
++                self._context = await self._browser.new_context(viewport={"width": 1280, "height": 720})
++
++            if self._page is None:
++                self._page = await self._context.new_page()
++
++    async def recover(self):
++        """Force a full recreation of the browser state."""
++        logger.warning("Initiating full browser recovery...")
++        await self.close()
++        await self._ensure_started()
++
++    from app.utils.retry import async_retry
++
++    @async_retry(max_retries=2, initial_backoff=2.0)
++    async def search_web(self, query: str) -> Dict[str, Any]:
++        """Search the web using DuckDuckGo (or generic search engine)."""
++        try:
++            await self._ensure_started()
++            import urllib.parse
++            encoded_query = urllib.parse.quote_plus(query)
++            url = f"https://duckduckgo.com/?q={encoded_query}"
++            await self._page.goto(url, wait_until="networkidle", timeout=15000)
++            return {"success": True, "message": f"Searched web for '{query}'"}
++        except Exception as e:
++            logger.error("Failed to search web: %s", e)
++            await self.recover()
++            raise # Let retry framework handle it
++
++    @async_retry(max_retries=2, initial_backoff=2.0)
++    async def goto_url(self, url: str) -> Dict[str, Any]:
++        """Navigate to a URL."""
++        try:
++            await self._ensure_started()
++            # Playwright requires http:// or https://
++            if not url.startswith("http"):
++                url = f"https://{url}"
++            await self._page.goto(url, wait_until="networkidle", timeout=15000)
++            return {"success": True, "message": f"Navigated to {url}"}
++        except Exception as e:
++            logger.error("Failed to goto URL: %s", e)
++            await self.recover()
++            raise
++
++    async def get_page_content(self) -> Dict[str, Any]:
++        """Get text content of the page, stripped of raw HTML, representing what the user sees."""
++        try:
++            await self._ensure_started()
++            text = await self._page.evaluate("document.body.innerText")
++            # Truncate if insanely long to prevent blowing up the LLM context
++            text = text[:10000] if text else ""
++            return {"success": True, "content": text}
++        except Exception as e:
++            logger.error("Failed to get page content: %s", e)
++            return {"success": False, "error": str(e)}
++
++    async def get_page_state(self) -> Dict[str, Any]:
++        """Get the current URL, page title, and visible content."""
++        try:
++            await self._ensure_started()
++            url = self._page.url
++            title = await self._page.title()
++            text = await self._page.evaluate("document.body.innerText")
++            text = text[:10000] if text else ""
++
++            return {
++                "success": True,
++                "url": url,
++                "title": title,
++                "content": text
++            }
++        except Exception as e:
++            logger.error("Failed to get page state: %s", e)
++            return {"success": False, "error": str(e)}
++
++    @async_retry(max_retries=2, initial_backoff=1.0)
++    async def click_element(self, selector: str) -> Dict[str, Any]:
++        """Click on a specific element by CSS or text selector."""
++        try:
++            await self._ensure_started()
++
++            # Using text locators if selector seems like plain text
++            if not selector.startswith(".") and not selector.startswith("#") and "[" not in selector:
++                locator = self._page.get_by_text(selector, exact=False).first
++            else:
++                locator = self._page.locator(selector).first
++
++            await locator.wait_for(state="visible", timeout=5000)
++            await locator.click()
++            return {"success": True, "message": f"Clicked on '{selector}'"}
++        except Exception as e:
++            logger.error("Failed to click element: %s", e)
++            raise
++
++    @async_retry(max_retries=2, initial_backoff=1.0)
++    async def fill_input(self, selector: str, text: str) -> Dict[str, Any]:
++        """Fill an input field with text."""
++        try:
++            await self._ensure_started()
++
++            # If it looks like placeholder text, try get_by_placeholder
++            if not selector.startswith(".") and not selector.startswith("#") and "[" not in selector:
++                locator = self._page.get_by_placeholder(selector).first
++                # Fallback to get_by_role / label if needed, but placeholder is common
++            else:
++                locator = self._page.locator(selector).first
++
++            await locator.wait_for(state="visible", timeout=5000)
++            await locator.fill(text)
++            return {"success": True, "message": f"Filled '{selector}' with text."}
++        except Exception as e:
++            logger.error("Failed to fill input: %s", e)
++            raise
++
++    async def screenshot(self, path: Optional[str] = None) -> Dict[str, Any]:
++        """Take a screenshot of the current page."""
++        try:
++            await self._ensure_started()
++            import datetime
++            if path is None:
++                filename = f"browser_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
++                path = str(SCREENSHOT_DIR / filename)
++            await self._page.screenshot(path=path)
++            return {"success": True, "message": f"Screenshot saved to {path}"}
++        except Exception as e:
++            logger.error("Failed to take screenshot: %s", e)
++            return {"success": False, "error": str(e)}
++
++    async def close(self):
++        """Shutdown Playwright cleanly."""
++        if self._browser:
++            await self._browser.close()
++        if self._playwright:
++            await self._playwright.stop()
++        self._browser = None
++        self._playwright = None
++        self._page = None
++        self._context = None
++
++# Global singleton instance
++browser_agent = BrowserAgent()
+diff --git a/backend/autonomous/agent_loop.py b/backend/autonomous/agent_loop.py
+index b65d8cc..1f9c9ea 100644
+--- a/backend/autonomous/agent_loop.py
++++ b/backend/autonomous/agent_loop.py
+@@ -18,52 +18,140 @@ from app.utils.logger import get_logger
+
+ logger = get_logger("agent_loop")
+
++voice_command_queue = None
++main_event_loop = None
++
++def get_voice_queue():
++    global voice_command_queue
++    if voice_command_queue is None:
++        voice_command_queue = asyncio.Queue()
++    return voice_command_queue
++
+ async def run_autonomous_loop():
+     """
+     Infinite loop:
+-      1. Observe screen (OCR)
+-      2. Think (LLM decides what's needed)
+-      3. Plan (Maps thought to discrete action)
++      1. Observe screen (OCR / Browser Page Content)
++      2. Think (LLM decides what's needed, passing history)
++      3. Plan (Maps tool call to discrete action)
+       4. Execute (Runs action)
+     """
++    global main_event_loop
++    main_event_loop = asyncio.get_running_loop()
++
++    from app.system.diagnostics import run_startup_diagnostics
++    await run_startup_diagnostics()
++
+     logger.info("🚀 Starting Autonomous Agent Loop...")
+
+     # Keeping track of what it saw last to avoid spamming the same thought
+     last_context = ""
+
++    # Memory for multi-step execution (last 20 actions)
++    action_history = []
++
++    from app.utils.performance import performance_monitor
++    import time
++    from app.database.db import load_task_checkpoint
++
++    # Recovery Task Evaluation
++    # Note: Normally you'd want the UI or prompt to determine which task to resume.
++    # For now, we seed history if there's a hardcoded recent task, but realistically
++    # JARVIS will rely on `task_history` DB fed into `brain.py` context to naturally pick up.
++
+     while True:
+         try:
+-            # 1. Observe (Read screen)
+-            logger.debug("Observing screen...")
+-            # We run OCR in a thread to not block standard asyncio execution
++            loop_start = time.time()
++            queue = get_voice_queue()
++            # Check for direct voice commands injected from the VoiceAgent thread
++            if not queue.empty():
++                voice_command = await queue.get()
++                logger.info(f"Received voice command from queue: {voice_command}")
++
++                from voice.voice_agent import VoiceAgent
++                agent = VoiceAgent.get_instance()
++                # Process the command entirely on the main event loop
++                await agent.process_voice_command(voice_command)
++                queue.task_done()
++                continue
++
++            # 1. Observe (Read screen / Browser)
++            logger.debug("Observing screen and browser...")
++
++            # Combine generic screen text with browser DOM text
+             screen_text = await asyncio.to_thread(screen_agent.extract_text)
+
++            from automation.browser_agent import browser_agent
++            browser_res = await browser_agent.get_page_state()
++
++            browser_url = browser_res.get("url", "None")
++            browser_title = browser_res.get("title", "None")
++            browser_text = browser_res.get("content", "")
++
++            combined_context = (
++                f"SCREEN OCR:\n{screen_text}\n\n"
++                f"BROWSER STATE:\n"
++                f"URL: {browser_url}\n"
++                f"Title: {browser_title}\n"
++                f"Content:\n{browser_text}"
++            )
++
+             # Simple deduplication so it doesn't think about the exact same screen endlessly
+-            if screen_text == last_context:
++            if combined_context == last_context:
+                 await asyncio.sleep(5)
+                 continue
+
+-            last_context = screen_text
++            last_context = combined_context
+
+-            if screen_text.strip():
+-                # 2. Think
+-                ai_thought = await think(screen_text)
++            if combined_context.strip():
++                # 2. Think (passing history)
++                ai_thought = await think(combined_context, action_history=action_history)
+
+                 # 3. Plan
++                plan_start = time.time()
+                 action_plan = plan(ai_thought)
++                performance_monitor.log_metric("planning_times_ms", (time.time() - plan_start) * 1000)
+
+                 # 4. Execute
++                exec_start = time.time()
+                 result = await execute_plan(action_plan)
++                performance_monitor.log_metric("tool_execution_times_ms", (time.time() - exec_start) * 1000)
+
+                 logger.info("Agent Step Complete | Plan: %s | Result: %s", action_plan.get('action'), result)
++
++                # Trigger report generation occasionally
++                if len(action_history) > 0 and len(action_history) % 10 == 0:
++                    performance_monitor.generate_report()
++
++                # Update History
++                action_history.append({
++                    "action": action_plan.get("action"),
++                    "result": str(result)
++                })
++                # Keep only the last 20
++                if len(action_history) > 20:
++                    action_history.pop(0)
++
++                # Immediately replan if the agent performed an actionable task
++                if action_plan.get("action") not in ["none", "log_thought"]:
++                    logger.debug("Action performed. Looping immediately for next observation.")
++                    continue
++
+             else:
+-                logger.debug("No text detected on screen.")
++                logger.debug("No text detected on screen or browser.")
+
+         except Exception as e:
+             logger.error("Agent Loop Error: %s", e)
+
+-        # Wait 5 seconds before next cycle
++        # Wait 5 seconds before next cycle (if nothing actionable happened)
+         await asyncio.sleep(5)
++
++        # Periodically trigger preference learning (if history is populated)
++        try:
++            if len(action_history) > 5 and len(action_history) % 5 == 0:
++                from app.services.memory_manager import memory_manager
++                await memory_manager.learn_preferences(action_history)
++        except Exception as e:
++            logger.error("Preference Learning Error: %s", e)
+
+ if __name__ == "__main__":
+     try:
+diff --git a/backend/autonomous/brain.py b/backend/autonomous/brain.py
+index b017908..209fbb6 100644
+--- a/backend/autonomous/brain.py
++++ b/backend/autonomous/brain.py
+@@ -7,47 +7,75 @@ from app.utils.logger import get_logger
+
+ logger = get_logger("brain")
+
+-async def think(context: str, model: str = "qwen2.5-coder:7b") -> str:
++from typing import Any, List, Dict
++from autonomous.planner import TOOLS_SCHEMA
++
++from app.services.memory_manager import memory_manager
++import json
++
++async def think(context: str, action_history: List[Dict[str, str]] = None, model: str = "qwen2.5-coder:7b") -> Any:
+     """
+-    Given environmental context (like screen OCR text), ask the AI to decide
+-    what action it should take.
++    Given environmental context and action history, ask the AI to decide
++    what action it should take using native tool calling. Integrates long term memory.
+     """
+     logger.info("Brain is thinking about the current context...")
+
++    # 1. Fetch long-term context from Memory Manager
++    user_profile = memory_manager.load_user_profile()
++    user_prefs = await memory_manager.search_memory()
++    job_history = await memory_manager.get_recent_job_history(limit=5)
++    task_history = await memory_manager.get_recent_task_history(limit=5)
++
++    history_str = ""
++    if action_history:
++        history_str = "\nRecent actions (Short-term context):\n"
++        for act in action_history:
++            history_str += f"- Action: {act.get('action')} | Result: {act.get('result')}\n"
++
++    # 2. Fetch tool health
++    from app.services.tool_health import tool_health
++    health_status = tool_health.get_health()
++    unavailable_tools = [k for k, v in health_status.items() if not v.get("available")]
++    health_str = ""
++    if unavailable_tools:
++        health_str = f"\nWARNING: The following subsystems are UNAVAILABLE: {', '.join(unavailable_tools)}. Do not attempt to use tools that rely on them.\n"
++
+     prompt = f"""
+-    You are Ultron, an autonomous computing assistant.
++    You are JARVIS, an autonomous browser and desktop assistant.
+
+-    You have the ability to observe the user's screen and decide if any action is needed.
+-    You can:
+-    - analyze screen errors
+-    - open apps (e.g., vscode, chrome)
+-    - organize files or downloads
+-    - help with coding
+-    - do nothing if the screen looks normal
++    You must accomplish tasks by calling the provided tools. {health_str}
++    You can navigate the browser, click elements, read the page, fill inputs, search for jobs, and prepare applications.
++
++    [LONG TERM MEMORY]
++    User Profile: {json.dumps(user_profile)}
++    User Preferences: {json.dumps(user_prefs)}
++    Recent Job Applications: {json.dumps(job_history)}
++    Recent Past Tasks: {json.dumps(task_history)}
++
++    {history_str}
+
+-    Here is the current text extracted from the user's screen:
++    Current environmental context (Screen/Browser Text):
+     ---
+     {context[:3000]}
+     ---
+
+-    Based ONLY on the text above, decide what action should be taken right now.
+-    Answer with a short, specific command or intent.
+-    Examples:
+-    - "explain error: NameError: x is not defined"
+-    - "open_vscode"
+-    - "organize_downloads"
+-    - "none" if everything is fine and no action is required.
++    Based ONLY on the text and history above, decide what tool to call next.
++    If you are done, or no action is needed, call `log_thought` with "Task complete" or similar.
+     """
+
+     try:
+-        # Use our existing ai_service to query Ollama
++        # Use our existing ai_service to query Ollama with tools
++        from autonomous.planner import get_available_tools
++        active_tools = get_available_tools()
++
+         response = await ai_service.chat(
+             message=prompt,
+             history=[],
+-            model=model
++            model=model,
++            tools=active_tools if active_tools else None
+         )
+         logger.debug("Brain thought: %s", response)
+-        return response.strip()
++        return response
+     except Exception as e:
+         logger.error("Brain failed to think: %s", e)
+         return "error"
+diff --git a/backend/autonomous/executor.py b/backend/autonomous/executor.py
+index 5489e00..9b665be 100644
+--- a/backend/autonomous/executor.py
++++ b/backend/autonomous/executor.py
+@@ -25,40 +25,151 @@ async def execute_plan(plan: Dict[str, Any]) -> str:
+             from app.system.app_control import open_vscode
+             result = open_vscode()
+             return f"Opened VS Code: {result.get('success')}"
+-
+         elif app_name == "chrome":
+             from app.system.app_control import open_browser
+             result = open_browser("https://google.com")
+             return f"Opened Chrome: {result.get('success')}"
+-
+         else:
+             from app.system.app_control import open_app as open_generic_app
+             result = open_generic_app(app_name)
+             return f"Opened {app_name}: {result.get('success')}"
+
+-    elif action == "organize_files":
+-        target = args.get("target")
+-        if target == "downloads":
+-            # Just an example path. A real system might use pathlib Path.home() / "Downloads"
+-            import os
+-            downloads_dir = os.path.expanduser("~/Downloads")
+-            from app.agents.file_agent import file_agent
+-            actions = file_agent.organise(downloads_dir, dry_run=False)
+-            return f"Organized {len(actions)} files in Downloads."
+-        return "Target directory not recognized."
+-
+-    elif action == "explain_error":
+-        context = args.get("context", "")
+-        # Here we could format and log this, or send to a UI websocket.
+-        # For a headless agent, logging the AI's explanation is typically what it does.
+-        logger.info("Agent Error Explanation:\n%s", context)
+-        return "Explained error in logs."
++    # --- New Browser Agent Tools ---
++    elif action == "search_web":
++        query = args.get("query")
++        from automation.browser_agent import browser_agent
++        res = await browser_agent.search_web(query)
++        return res.get("message") or res.get("error")
++
++    elif action == "open_page":
++        url = args.get("url")
++        from automation.browser_agent import browser_agent
++        res = await browser_agent.goto_url(url)
++        return res.get("message") or res.get("error")
++
++    elif action == "click_element":
++        selector = args.get("selector")
++        from automation.browser_agent import browser_agent
++        res = await browser_agent.click_element(selector)
++        return res.get("message") or res.get("error")
++
++    elif action == "fill_form":
++        selector = args.get("selector")
++        text = args.get("text")
++        from automation.browser_agent import browser_agent
++        res = await browser_agent.fill_input(selector, text)
++        return res.get("message") or res.get("error")
++
++    elif action == "extract_page":
++        from automation.browser_agent import browser_agent
++        res = await browser_agent.get_page_content()
++        return res.get("content") or res.get("error")
++
++    elif action == "take_screenshot":
++        from automation.browser_agent import browser_agent
++        res = await browser_agent.screenshot()
++        return res.get("message") or res.get("error")
++
++    # --- Job Agent Tools ---
++    elif action == "search_jobs":
++        platform = args.get("platform", "").lower()
++        query = args.get("query", "")
++        location = args.get("location", "")
++        from app.agents.job_agent import job_agent
++
++        if platform == "linkedin":
++            res = await job_agent.search_linkedin_jobs(query, location)
++        elif platform == "internshala":
++            res = await job_agent.search_internshala_jobs(query)
++        elif platform == "wellfound":
++            res = await job_agent.search_wellfound_jobs(query)
++        elif platform == "naukri":
++            res = await job_agent.search_naukri_jobs(query)
++        else:
++            return f"Error: Unknown job platform '{platform}'"
++
++        return res.get("message") or res.get("error")
++
++    # --- Application Agent Tools ---
++    elif action == "application_action":
++        action_type = args.get("action_type")
++        from app.agents.application_agent import application_agent
++
++        if action_type == "open":
++            res = await application_agent.open_application(args.get("url", ""))
++        elif action_type == "upload_resume":
++            res = await application_agent.upload_resume(args.get("selector", ""))
++        elif action_type == "get_details":
++            res = await application_agent.fill_personal_details()
++            return str(res.get("details", res.get("error")))
++        elif action_type == "review":
++            res = await application_agent.review_application(
++                company=args.get("company", ""),
++                role=args.get("role", ""),
++                fields_filled=args.get("fields_filled", {}),
++                missing_fields=args.get("missing_fields", [])
++            )
++        else:
++            return f"Error: Unknown application action '{action_type}'"
++
++        return res.get("message") or res.get("error")
++
++    # --- YouTube Agent Tools ---
++    elif action == "youtube_action":
++        action_type = args.get("action_type")
++        query = args.get("query", "")
++        from app.agents.youtube_agent import youtube_agent
++
++        if action_type == "search":
++            res = await youtube_agent.search_youtube(query)
++        elif action_type == "open_video":
++            res = await youtube_agent.open_video(query)
++        elif action_type == "play":
++            res = await youtube_agent.play_video()
++        elif action_type == "open_playlist":
++            res = await youtube_agent.open_playlist(query)
++        else:
++            return f"Error: Unknown YouTube action '{action_type}'"
++
++        return res.get("message") or res.get("error")
++    # -------------------------------
++
++    elif action == "score_job":
++        from app.models.schemas import JobResult
++        from app.services.job_scoring import job_scorer
++        from app.database.db import save_job
++
++        # Create a transient JobResult from args
++        job = JobResult(
++            title=args.get("title", "Unknown"),
++            company=args.get("company", "Unknown"),
++            location=args.get("location", "Unknown"),
++            salary=args.get("salary", "Unknown"),
++            skills=args.get("skills", []),
++            url=args.get("url", ""),
++            source=args.get("source", "Unknown")
++        )
++
++        res = await job_scorer.score_job(job)
++        if res.get("success"):
++            score = res.get("score", 0.0)
++            reasoning = res.get("reasoning", "")
++            # Save it to database if it's a good match (e.g., > 6.0)
++            if score > 6.0:
++                 await save_job(job.title, job.company, job.location, job.salary, job.skills, job.url, job.source, score)
++            return f"Scored job {job.title} at {score}/10.0. Reasoning: {reasoning}"
++        return res.get("error")
+
+     elif action == "log_thought":
+         thought = args.get("thought", "")
+         logger.info("Agent generic thought:\n%s", thought)
+-        return "Logged thought."
++
++        # Log to long term task history
++        from app.database.db import log_task_history
++        await log_task_history(task="Agent generic thought", result=thought)
++
++        return f"Logged thought: {thought}"
+
+     else:
+         logger.warning("Unknown action in plan: %s", action)
+-        return "Unknown action."
++        return f"Unknown action: {action}"
+diff --git a/backend/autonomous/planner.py b/backend/autonomous/planner.py
+index bdade98..03a9529 100644
+--- a/backend/autonomous/planner.py
++++ b/backend/autonomous/planner.py
+@@ -8,36 +8,229 @@ from app.utils.logger import get_logger
+
+ logger = get_logger("planner")
+
+-def plan(ai_response: str) -> Dict[str, Any]:
++# Define tools schema for Ollama native tool calling
++TOOLS_SCHEMA = [
++    {
++        "type": "function",
++        "function": {
++            "name": "open_app",
++            "description": "Open a desktop application.",
++            "parameters": {
++                "type": "object",
++                "properties": {
++                    "app_name": {"type": "string", "description": "Name of the application to open (e.g., 'code', 'chrome', 'calculator')."}
++                },
++                "required": ["app_name"]
++            }
++        }
++    },
++    {
++        "type": "function",
++        "function": {
++            "name": "search_web",
++            "description": "Search the internet for a query.",
++            "parameters": {
++                "type": "object",
++                "properties": {
++                    "query": {"type": "string", "description": "The search query."}
++                },
++                "required": ["query"]
++            }
++        }
++    },
++    {
++        "type": "function",
++        "function": {
++            "name": "open_page",
++            "description": "Navigate to a specific URL in the browser.",
++            "parameters": {
++                "type": "object",
++                "properties": {
++                    "url": {"type": "string", "description": "The URL to navigate to (e.g., 'https://linkedin.com')."}
++                },
++                "required": ["url"]
++            }
++        }
++    },
++    {
++        "type": "function",
++        "function": {
++            "name": "click_element",
++            "description": "Click an element on the current webpage.",
++            "parameters": {
++                "type": "object",
++                "properties": {
++                    "selector": {"type": "string", "description": "The text or CSS selector of the element to click."}
++                },
++                "required": ["selector"]
++            }
++        }
++    },
++    {
++        "type": "function",
++        "function": {
++            "name": "fill_form",
++            "description": "Fill a text input on the current webpage.",
++            "parameters": {
++                "type": "object",
++                "properties": {
++                    "selector": {"type": "string", "description": "The text or CSS selector of the input field."},
++                    "text": {"type": "string", "description": "The text to type into the field."}
++                },
++                "required": ["selector", "text"]
++            }
++        }
++    },
++    {
++        "type": "function",
++        "function": {
++            "name": "extract_page",
++            "description": "Get the text content of the current webpage.",
++            "parameters": {
++                "type": "object",
++                "properties": {},
++                "required": []
++            }
++        }
++    },
++    {
++        "type": "function",
++        "function": {
++            "name": "take_screenshot",
++            "description": "Take a screenshot of the current browser page.",
++            "parameters": {
++                "type": "object",
++                "properties": {},
++                "required": []
++            }
++        }
++    },
++    {
++        "type": "function",
++        "function": {
++            "name": "log_thought",
++            "description": "Log a thought or explain an error if no active action is needed.",
++            "parameters": {
++                "type": "object",
++                "properties": {
++                    "thought": {"type": "string", "description": "The text to log or explain."}
++                },
++                "required": ["thought"]
++            }
++        }
++    },
++    {
++        "type": "function",
++        "function": {
++            "name": "search_jobs",
++            "description": "Search for jobs on specific platforms.",
++            "parameters": {
++                "type": "object",
++                "properties": {
++                    "platform": {"type": "string", "enum": ["linkedin", "internshala", "wellfound", "naukri"], "description": "The job board to search on."},
++                    "query": {"type": "string", "description": "The job title or keyword to search for."},
++                    "location": {"type": "string", "description": "The location to search in (only used for linkedin currently)."}
++                },
++                "required": ["platform", "query"]
++            }
++        }
++    },
++    {
++        "type": "function",
++        "function": {
++            "name": "application_action",
++            "description": "Perform an action related to filling out and reviewing a job application.",
++            "parameters": {
++                "type": "object",
++                "properties": {
++                    "action_type": {"type": "string", "enum": ["open", "upload_resume", "get_details", "review"], "description": "The application action to perform."},
++                    "url": {"type": "string", "description": "The URL to open (if action_type is 'open')."},
++                    "selector": {"type": "string", "description": "The file input selector (if action_type is 'upload_resume')."},
++                    "company": {"type": "string", "description": "Company name (if action_type is 'review')."},
++                    "role": {"type": "string", "description": "Role name (if action_type is 'review')."},
++                    "fields_filled": {"type": "object", "description": "Key-value pairs of filled fields (if action_type is 'review')."},
++                    "missing_fields": {"type": "array", "items": {"type": "string"}, "description": "List of missing fields (if action_type is 'review')."}
++                },
++                "required": ["action_type"]
++            }
++        }
++    },
++    {
++        "type": "function",
++        "function": {
++            "name": "youtube_action",
++            "description": "Perform an action on YouTube.",
++            "parameters": {
++                "type": "object",
++                "properties": {
++                    "action_type": {"type": "string", "enum": ["search", "open_video", "play", "open_playlist"], "description": "The action to perform on YouTube."},
++                    "query": {"type": "string", "description": "The search query or URL/ID to open."}
++                },
++                "required": ["action_type"]
++            }
++        }
++    },
++    {
++        "type": "function",
++        "function": {
++            "name": "score_job",
++            "description": "Score a job based on the user's resume and profile.",
++            "parameters": {
++                "type": "object",
++                "properties": {
++                    "title": {"type": "string", "description": "Job title."},
++                    "company": {"type": "string", "description": "Company name."},
++                    "location": {"type": "string", "description": "Job location."},
++                    "skills": {
++                        "type": "array",
++                        "items": {"type": "string"},
++                        "description": "Required skills for the job."
++                    }
++                },
++                "required": ["title", "company"]
++            }
++        }
++    }
++]
++
++def get_available_tools() -> list:
++    """Filter TOOLS_SCHEMA based on tool_health."""
++    from app.services.tool_health import tool_health
++    health = tool_health.get_health()
++    available = []
++
++    for tool in TOOLS_SCHEMA:
++        name = tool["function"]["name"]
++
++        # Check browser tools
++        if name in ["search_web", "open_page", "click_element", "fill_form", "extract_page", "search_jobs", "application_action", "youtube_action"]:
++            if health.get("browser", {}).get("available"):
++                available.append(tool)
++        # Assuming log_thought and score_job only require Ollama/Memory, which are implicitly checked if this code runs
++        else:
++            available.append(tool)
++
++    return available
++
++def plan(ai_response: Any) -> Dict[str, Any]:
+     """
+-    Parses the raw reasoning text from the Brain and maps it to specific
++    Parses the tool-call object returned from Ollama and maps it to specific
+     functional commands the Executor understands.
+-
+-    Returns a dictionary like:
+-    {"action": "open_vscode", "args": ...}
+     """
+-    response_lower = ai_response.lower()
+-
+-    # 1. Do Nothing
+-    if "none" in response_lower or "no action required" in response_lower:
+-        return {"action": "none"}
++    if isinstance(ai_response, dict) and "tool_calls" in ai_response:
++        tool_call = ai_response["tool_calls"][0]
++        func = tool_call.get("function", {})
+
+-    # 2. Open Apps
+-    if "open vscode" in response_lower or "open code" in response_lower:
+-        return {"action": "open_app", "args": {"app_name": "code"}}
+-
+-    if "open chrome" in response_lower or "open browser" in response_lower:
+-        return {"action": "open_app", "args": {"app_name": "chrome"}}
+-
+-    # 3. File Tasks
+-    if "organize downloads" in response_lower or "organise downloads" in response_lower:
+-        # We can dynamically resolve the Downloads folder logic inside the executor
+-        return {"action": "organize_files", "args": {"target": "downloads"}}
+-
+-    # 4. Error explanations
+-    if "explain error" in response_lower or "error" in response_lower or "exception" in response_lower:
+-        # Assuming the AI response itself contains the explanation or context of the error
+-        return {"action": "explain_error", "args": {"context": ai_response}}
+-
+-    # Fallback to general chat / log thought
+-    return {"action": "log_thought", "args": {"thought": ai_response}}
++        return {
++            "action": func.get("name"),
++            "args": func.get("arguments", {})
++        }
++
++    # If the AI just responded with plain text instead of a tool call
++    if isinstance(ai_response, str):
++        response_lower = ai_response.lower()
++        if "none" in response_lower or "no action required" in response_lower:
++            return {"action": "none"}
++        return {"action": "log_thought", "args": {"thought": ai_response}}
++
++    return {"action": "none"}
+diff --git a/backend/memory/user_profile.json b/backend/memory/user_profile.json
+new file mode 100644
+index 0000000..7568175
+--- /dev/null
++++ b/backend/memory/user_profile.json
+@@ -0,0 +1,17 @@
++{
++  "name": "Jane Doe",
++  "email": "jane.doe@example.com",
++  "phone": "+1-555-019-8372",
++  "resume_path": "/home/jules/Documents/resume.pdf",
++  "linkedin_url": "https://linkedin.com/in/janedoe",
++  "github_url": "https://github.com/janedoe",
++  "skills": [
++    "Python",
++    "React",
++    "TypeScript",
++    "Node.js",
++    "Docker",
++    "SQL",
++    "Playwright"
++  ]
++}
+\ No newline at end of file
+diff --git a/backend/requirements.txt b/backend/requirements.txt
+index 7fc03c4..8292ddf 100644
+--- a/backend/requirements.txt
++++ b/backend/requirements.txt
+@@ -79,3 +79,7 @@ aiosqlite==0.20.0
+ # ─────────────────────────────────────────────
+ pytest==8.2.0
+ pytest-asyncio==0.23.7
++PyMuPDF>=1.24.0
++piper-tts>=1.2.0
++simpleaudio>=1.0.4
++playwright>=1.44.0
+diff --git a/backend/voice/voice_agent.py b/backend/voice/voice_agent.py
+index cbc7643..87b4570 100644
+--- a/backend/voice/voice_agent.py
++++ b/backend/voice/voice_agent.py
+@@ -169,11 +169,12 @@ class VoiceAgent:
+             return
+
+         try:
+-            from voice.voice_output import speak
++            from app.services.voice_manager import voice_manager
+             from voice.voice_input import listen_and_transcribe
++            import time
+
+             # Acknowledge
+-            speak("Hey Sir, how can I help you?")
++            voice_manager.speak("Yes?")
+             time.sleep(0.3)  # small gap before recording
+
+             # Record command
+@@ -182,17 +183,35 @@ class VoiceAgent:
+             command_text = listen_and_transcribe(duration=6.0, model_size="base")
+
+             if not command_text:
+-                speak("Sorry, I didn't catch that. Please try again.")
++                voice_manager.speak("Sorry, I didn't catch that. Please try again.")
+                 return
+
+             print(f"[VoiceAgent] Command: {command_text}")
+-            self.process_voice_command(command_text)
++
++            import asyncio
++            # To avoid crossing thread boundaries with Playwright (which lives on the main event loop),
++            # we send the command to the autonomous loop via a global queue.
++            from autonomous.agent_loop import get_voice_queue
++
++            from autonomous.agent_loop import main_event_loop
++            try:
++                if main_event_loop and main_event_loop.is_running():
++                    queue = get_voice_queue()
++                    main_event_loop.call_soon_threadsafe(queue.put_nowait, command_text)
++                else:
++                    raise RuntimeError("No running main loop found")
++            except RuntimeError:
++                # Fallback if running entirely standalone (no main loop running yet)
++                loop = asyncio.new_event_loop()
++                asyncio.set_event_loop(loop)
++                loop.run_until_complete(self.process_voice_command(command_text))
++                loop.close()
+
+         except Exception as exc:
+             logger.error("on_wake_detected error: %s", exc)
+             try:
+-                from voice.voice_output import speak
+-                speak("Sorry, I had a problem processing that.")
++                from app.services.voice_manager import voice_manager
++                voice_manager.speak("Sorry, I had a problem processing that.")
+             except Exception:
+                 pass
+         finally:
+@@ -202,7 +221,7 @@ class VoiceAgent:
+     #  COMMAND PIPELINE
+     # ─────────────────────────────────────────────────────────────────────────
+
+-    def process_voice_command(self, command_text: str) -> dict:
++    async def process_voice_command(self, command_text: str) -> dict:
+         """
+         Full voice command pipeline:
+           1. Build memory context (Step 5 integration)
+@@ -226,27 +245,36 @@ class VoiceAgent:
+         # ── Step 1: Memory context ────────────────────────────────────────────
+         mem_context = ""
+         try:
+-            from memory.memory_manager import memory
+-            mem_context = memory.build_memory_context(command_text)
++            from app.services.memory_manager import memory_manager
++            # Load user memory context implicitly to help guide parsing if necessary
++            # For JARVIS we're primarily relying on the agent_loop context,
++            # but voice commands inject user preferences directly
++            user_prefs = await memory_manager.search_memory()
+         except Exception as mem_exc:
+             logger.warning("Memory context error (non-fatal): %s", mem_exc)
+
+-        # ── Step 2: Ollama call ───────────────────────────────────────────────
++        # ── Step 2: Planner (Ollama tool call) ───────────────────────────────────────────────
+         action_dict = {}
+-        raw_response = ""
+         try:
+-            action_dict, raw_response = self._call_ollama(command_text, mem_context)
++            # Reusing the existing async think -> plan -> execute loop from the background
++            from autonomous.brain import think
++            from autonomous.planner import plan
++
++            ai_thought = await think(command_text)
++            action_dict = plan(ai_thought)
++
+         except Exception as ollama_exc:
+-            logger.error("Ollama call failed: %s", ollama_exc)
++            logger.error("Ollama/Planner call failed: %s", ollama_exc)
+             from voice.voice_output import speak
+-            speak("Sorry, the AI model is not responding right now.")
++            speak("Sorry, I could not process that command right now.")
+             return {"success": False, "error": str(ollama_exc)}
+
+         # ── Step 3: Execute action ────────────────────────────────────────────
+         result = {}
+         try:
+-            from app.services.action_executor import execute_action
+-            result = execute_action(action_dict)
++            from autonomous.executor import execute_plan
++            res_str = await execute_plan(action_dict)
++            result = {"success": True, "message": res_str}
+         except Exception as exec_exc:
+             logger.error("Action execution failed: %s", exec_exc)
+             result = {"success": False, "error": str(exec_exc)}
+@@ -255,27 +283,11 @@ class VoiceAgent:
+         spoken_text = generate_spoken_response(action_dict, result)
+         print(f"[VoiceAgent] Speaking: {spoken_text}")
+         try:
+-            from voice.voice_output import speak_async
+-            speak_async(spoken_text)
++            from app.services.voice_manager import voice_manager
++            voice_manager.speak(spoken_text)
+         except Exception as tts_exc:
+             logger.warning("TTS failed (non-fatal): %s", tts_exc)
+
+-        # ── Step 5: Save to memory ────────────────────────────────────────────
+-        duration_ms = int((_time.time() - t_start) * 1000)
+-        try:
+-            from memory.memory_manager import memory
+-            result_str = result.get("message") or result.get("error") or str(result)
+-            memory.save_command(
+-                user_input=command_text,
+-                action_taken=action_dict,
+-                result=result_str,
+-                success=bool(result.get("success", False)),
+-                duration_ms=duration_ms,
+-            )
+-            memory.extract_and_save_preferences(command_text, action_dict)
+-        except Exception as mem_exc:
+-            logger.warning("Memory save failed (non-fatal): %s", mem_exc)
+-
+         return {
+             "success": bool(result.get("success", False)),
+             "command": command_text,
+diff --git a/backend/voice/voice_input.py b/backend/voice/voice_input.py
+index 2ab13b3..f5fb4a3 100644
+--- a/backend/voice/voice_input.py
++++ b/backend/voice/voice_input.py
+@@ -52,11 +52,11 @@ _CHUNK_SIZE    = 1024     # pyaudio chunk size
+
+ # ── Default wake words ────────────────────────────────────────────────────────
+ DEFAULT_WAKE_WORDS: List[str] = [
+-    "hello ultron",
+-    "hey ultron",
+-    "ultron",
++    "hey jarvis",
++    "jarvis",
++    "hello jarvis",
+     "hey agent",
+-    "wake up ultron",
++    "wake up jarvis",
+     "computer",
+ ]
+
+@@ -138,23 +138,23 @@ def record_audio(duration: float = 5.0, sample_rate: int = _SAMPLE_RATE) -> Opti
+
+     for dev_idx in devices_to_try:
+         if success: break
+-        forrate in rates_to_try:
++        for rate in rates_to_try:
+             try:
+                 stream = pa.open(
+                     format=pyaudio.paInt16,
+                     channels=_CHANNELS,
+-                    rate=forrate,
++                    rate=rate,
+                     input=True,
+                     input_device_index=dev_idx,
+                     frames_per_buffer=_CHUNK_SIZE,
+                 )
+-                actual_rate = forrate
++                actual_rate = rate
+                 success = True
+-                if dev_idx is not None or forrate != sample_rate:
+-                    logger.info("Recording fallback success: Device=%s, Rate=%d", dev_idx, forrate)
++                if dev_idx is not None or rate != sample_rate:
++                    logger.info("Recording fallback success: Device=%s, Rate=%d", dev_idx, rate)
+                 break
+             except Exception as e:
+-                # logger.debug("Failed opening mic (dev=%s, rate=%d): %s", dev_idx, forrate, e)
++                # logger.debug("Failed opening mic (dev=%s, rate=%d): %s", dev_idx, rate, e)
+                 continue
+
+     if not success:
+diff --git a/backend/voice/voice_output.py b/backend/voice/voice_output.py
+index ed96915..b3d14e2 100644
+--- a/backend/voice/voice_output.py
++++ b/backend/voice/voice_output.py
+@@ -1,31 +1,35 @@
+ """
+-voice/voice_output.py -- Offline Text-to-Speech engine using pyttsx3.
++voice/voice_output.py -- Offline Text-to-Speech engine using Piper TTS.
+
+-pyttsx3 uses Windows' built-in SAPI5 speech engine -- zero internet required,
+-zero latency from network calls. The engine is initialised ONCE at module level
+-as a singleton to avoid the overhead of re-initialising on every speak() call.
+-
+-THREAD SAFETY NOTE: pyttsx3 is NOT thread-safe -- runAndWait() must always be
+-called from the SAME thread that called engine.say(). Use speak_async() to fire
+-TTS from background contexts without blocking the caller.
++Piper provides high-quality, fully local neural text-to-speech without cloud dependencies.
++Models are downloaded automatically or loaded from a local cache.
+
+ INSTALL:
+-    pip install pyttsx3
++    pip install piper-tts
+ """
+
+ from __future__ import annotations
+
++import io
++import os
++import wave
+ import logging
+ import re
+ import threading
+ from typing import Optional
++from pathlib import Path
+
+ logger = logging.getLogger("voice_output")
+
+ # ── Lazy-init globals ─────────────────────────────────────────────────────────
+-_engine    = None          # pyttsx3 engine singleton
++_piper_voice = None          # Piper Voice singleton
+ _tts_lock  = threading.Lock()  # serialise speak() calls
+ _is_speaking = False
++_play_obj = None
++
++PIPER_MODEL_DIR = Path(__file__).resolve().parent.parent / "models" / "piper"
++PIPER_MODEL_DIR.mkdir(parents=True, exist_ok=True)
++DEFAULT_MODEL = "en_US-lessac-medium" # Default high quality english voice
+
+ # ── Markdown / formatting stripper ───────────────────────────────────────────
+ _MD_PATTERN = re.compile(
+@@ -50,67 +54,43 @@ def _strip_markdown(text: str) -> str:
+ #  ENGINE INIT
+ # =============================================================================
+
+-def init_tts():
++def init_tts(model_name: str = DEFAULT_MODEL):
+     """
+-    Initialise and return the pyttsx3 TTS engine singleton.
+-
+-    Sets up the first available English voice, a comfortable speech rate (175
+-    words per minute), and full volume. Called automatically on first use --
+-    do not call it manually unless you need to force a reset.
+-
+-    Returns:
+-        pyttsx3.Engine, or None if pyttsx3 is not installed / SAPI5 error.
++    Initialise and return the Piper Voice singleton.
++    Downloads the model if it's not present locally.
+     """
+-    global _engine
+-    if _engine is not None:
+-        return _engine
++    global _piper_voice
++    if _piper_voice is not None:
++        return _piper_voice
+
+     try:
+-        import pyttsx3
+-
+-        engine = pyttsx3.init()
+-
+-        # ── Voice selection -- prefer the first English voice ─────────────────
+-        voices = engine.getProperty("voices")
+-        english_voice = None
+-        for v in voices:
+-            # On Windows, English voices have "English" or "en" in their ID/name
+-            vid = (v.id or "").lower()
+-            if "english" in vid or "en_" in vid or "en-" in vid or "zira" in vid or "david" in vid:
+-                english_voice = v.id
+-                break
+-
+-        if english_voice:
+-            engine.setProperty("voice", english_voice)
+-            logger.info("TTS voice selected: %s", english_voice)
+-        elif voices:
+-            # Fall back to first available voice
+-            engine.setProperty("voice", voices[0].id)
+-            logger.info("TTS voice (fallback): %s", voices[0].id)
+-
+-        # ── Rate: 175 WPM -- slightly slower than default for clarity ──────────
+-        engine.setProperty("rate", 175)
+-        # ── Volume: full ───────────────────────────────────────────────────────
+-        engine.setProperty("volume", 1.0)
+-
+-        _engine = engine
+-        logger.info("pyttsx3 TTS engine initialised.")
+-        return engine
+-
++        from piper.voice import PiperVoice
++        from piper.download import ensure_voice_exists, find_voice
++
++        logger.info(f"Initialising Piper TTS with model: {model_name}")
++        model_path, config_path = ensure_voice_exists(
++            model_name,
++            [str(PIPER_MODEL_DIR)],
++            str(PIPER_MODEL_DIR)
++        )
++
++        _piper_voice = PiperVoice(load_model=model_path, config_path=config_path)
++        logger.info("Piper TTS engine initialised successfully.")
++        return _piper_voice
++
+     except ImportError:
+-        logger.error("pyttsx3 not installed. Run: pip install pyttsx3")
++        logger.error("piper-tts not installed. Run: pip install piper-tts")
+         return None
+     except Exception as exc:
+-        logger.error("TTS init failed: %s", exc)
++        logger.error("Piper TTS init failed: %s", exc)
+         return None
+
+-
+ def _ensure_engine():
+-    """Return the engine, initialising it if needed."""
+-    global _engine
+-    if _engine is None:
++    """Return the piper voice, initialising it if needed."""
++    global _piper_voice
++    if _piper_voice is None:
+         init_tts()
+-    return _engine
++    return _piper_voice
+
+
+ # =============================================================================
+@@ -119,24 +99,13 @@ def _ensure_engine():
+
+ def speak(text: str) -> bool:
+     """
+-    Speak text aloud via the pyttsx3 SAPI5 engine.
+-
+-    Strips markdown formatting before speaking so code fences, asterisks, and
+-    heading symbols don't get read out. Serialised with a threading.Lock so
+-    only one speak() runs at a time (calling speak() while already speaking
+-    will wait for the current speech to finish).
+-
+-    Args:
+-        text: The text to speak. May contain markdown -- it will be cleaned.
+-
+-    Returns:
+-        True if speech completed, False on error or if engine unavailable.
++    Speak text aloud via the Piper TTS engine.
+     """
+-    global _is_speaking
++    global _is_speaking, _play_obj
+
+-    engine = _ensure_engine()
+-    if engine is None:
+-        logger.warning("TTS unavailable -- skipping speak().")
++    piper = _ensure_engine()
++    if piper is None:
++        logger.warning("Piper TTS unavailable -- skipping speak().")
+         return False
+
+     clean = _strip_markdown(text)
+@@ -144,16 +113,28 @@ def speak(text: str) -> bool:
+         return True
+
+     try:
++        import simpleaudio as sa
+         with _tts_lock:
+             _is_speaking = True
+             logger.info("TTS speaking: %s", clean[:80])
+-            engine.say(clean)
+-            engine.runAndWait()
++
++            # Synthesize audio to memory
++            wav_io = io.BytesIO()
++            with wave.open(wav_io, "wb") as wav_file:
++                piper.synthesize(clean, wav_file)
++
++            # Play audio
++            wav_io.seek(0)
++            wave_read = wave.open(wav_io, "rb")
++            audio_data = wave_read.readframes(wave_read.getnframes())
++
++            _play_obj = sa.play_buffer(audio_data, wave_read.getnchannels(), wave_read.getsampwidth(), wave_read.getframerate())
++            _play_obj.wait_done()
+             _is_speaking = False
++            _play_obj = None
+         return True
+-    except RuntimeError as exc:
+-        # pyttsx3 sometimes throws if the engine loop is already running
+-        logger.warning("TTS runtime error (engine busy?): %s", exc)
++    except ImportError:
++        logger.error("simpleaudio not installed. Run: pip install simpleaudio")
+         _is_speaking = False
+         return False
+     except Exception as exc:
+--
+2.53.0
