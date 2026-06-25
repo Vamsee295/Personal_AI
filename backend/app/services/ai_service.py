@@ -53,6 +53,9 @@ class AIService:
         tools: Optional[list] = None,
     ) -> str | dict:
         """Single-turn chat with conversation history. Returns str if no tools, or dict if tools used."""
+        import time
+        from app.utils.performance import performance_monitor
+        
         model = model or settings.DEFAULT_MODEL
 
         messages = [{"role": "system", "content": _CHAT_SYSTEM}]
@@ -60,11 +63,13 @@ class AIService:
             messages.append({"role": h.role, "content": h.content})
         messages.append({"role": "user", "content": message})
 
+        start = time.time()
         response = await ollama.chat(messages=messages, model=model, tools=tools)
-
+        performance_monitor.log_metric("llm_response_times_ms", (time.time() - start) * 1000)
+        
         if tools and response.get("tool_calls"):
             return response
-
+        
         return response.get("content", "")
 
     async def chat_stream(

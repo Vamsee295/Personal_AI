@@ -114,7 +114,7 @@ To meet all constraints (Tauri, Rust, Python Agent Layer, Playwright, Whisper.cp
 [ React (TypeScript) + Tauri UI ]
           | (Tauri IPC / Events)
           v
-[ Tauri Core (Rust) ]
+[ Tauri Core (Rust) ] 
    - Manages Window State
    - OS-level system calls (System Tray, Global Hotkeys)
    - Spawns & monitors the Python Agent Layer process

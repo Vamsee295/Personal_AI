@@ -27,6 +27,9 @@ async def lifespan(app: FastAPI):
     logger.info("Ollama URL  : %s", settings.OLLAMA_BASE_URL)
     logger.info("Default model: %s", settings.DEFAULT_MODEL)
     
+    from app.system.diagnostics import run_startup_diagnostics
+    await run_startup_diagnostics()
+
     # Start the screen monitoring background task
     screen_task = asyncio.create_task(screen_monitoring_loop())
     

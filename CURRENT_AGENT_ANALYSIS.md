@@ -13,7 +13,7 @@ The planner (`autonomous/planner.py`) relies on simplistic string matching rathe
 Alternatively, `services/agent_service.py` has a multi-step agent execution flow that tries to extract raw JSON out of markdown blocks (`_parse_plan`), which is better but still brittle compared to modern native tool-calling APIs.
 
 ## 3. Current Executor Behavior
-The `executor.py` and `services/action_executor.py` files take the parsed dictionary and route it to standard Python functions.
+The `executor.py` and `services/action_executor.py` files take the parsed dictionary and route it to standard Python functions. 
 - OS apps are opened via `subprocess.Popen` mapping known app names to system paths.
 - UI manipulation is handled by `PyAutoGUI` (typing text, moving mouse, clicking, pressing keys).
 - File operations are handled by standard Python OS/pathlib methods.

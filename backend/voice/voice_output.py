@@ -1,31 +1,35 @@
 """
-voice/voice_output.py -- Offline Text-to-Speech engine using pyttsx3.
+voice/voice_output.py -- Offline Text-to-Speech engine using Piper TTS.
 
-pyttsx3 uses Windows' built-in SAPI5 speech engine -- zero internet required,
-zero latency from network calls. The engine is initialised ONCE at module level
-as a singleton to avoid the overhead of re-initialising on every speak() call.
-
-THREAD SAFETY NOTE: pyttsx3 is NOT thread-safe -- runAndWait() must always be
-called from the SAME thread that called engine.say(). Use speak_async() to fire
-TTS from background contexts without blocking the caller.
+Piper provides high-quality, fully local neural text-to-speech without cloud dependencies.
+Models are downloaded automatically or loaded from a local cache.
 
 INSTALL:
-    pip install pyttsx3
+    pip install piper-tts
 """
 
 from __future__ import annotations
 
+import io
+import os
+import wave
 import logging
 import re
 import threading
 from typing import Optional
+from pathlib import Path
 
 logger = logging.getLogger("voice_output")
 
 # ── Lazy-init globals ─────────────────────────────────────────────────────────
-_engine    = None          # pyttsx3 engine singleton
+_piper_voice = None          # Piper Voice singleton
 _tts_lock  = threading.Lock()  # serialise speak() calls
 _is_speaking = False
+_play_obj = None
+
+PIPER_MODEL_DIR = Path(__file__).resolve().parent.parent / "models" / "piper"
+PIPER_MODEL_DIR.mkdir(parents=True, exist_ok=True)
+DEFAULT_MODEL = "en_US-lessac-medium" # Default high quality english voice
 
 # ── Markdown / formatting stripper ───────────────────────────────────────────
 _MD_PATTERN = re.compile(
@@ -50,67 +54,43 @@ def _strip_markdown(text: str) -> str:
 #  ENGINE INIT
 # =============================================================================
 
-def init_tts():
+def init_tts(model_name: str = DEFAULT_MODEL):
     """
-    Initialise and return the pyttsx3 TTS engine singleton.
-
-    Sets up the first available English voice, a comfortable speech rate (175
-    words per minute), and full volume. Called automatically on first use --
-    do not call it manually unless you need to force a reset.
-
-    Returns:
-        pyttsx3.Engine, or None if pyttsx3 is not installed / SAPI5 error.
+    Initialise and return the Piper Voice singleton.
+    Downloads the model if it's not present locally.
     """
-    global _engine
-    if _engine is not None:
-        return _engine
+    global _piper_voice
+    if _piper_voice is not None:
+        return _piper_voice
 
     try:
-        import pyttsx3
+        from piper.voice import PiperVoice
+        from piper.download import ensure_voice_exists, find_voice
 
-        engine = pyttsx3.init()
-
-        # ── Voice selection -- prefer the first English voice ─────────────────
-        voices = engine.getProperty("voices")
-        english_voice = None
-        for v in voices:
-            # On Windows, English voices have "English" or "en" in their ID/name
-            vid = (v.id or "").lower()
-            if "english" in vid or "en_" in vid or "en-" in vid or "zira" in vid or "david" in vid:
-                english_voice = v.id
-                break
-
-        if english_voice:
-            engine.setProperty("voice", english_voice)
-            logger.info("TTS voice selected: %s", english_voice)
-        elif voices:
-            # Fall back to first available voice
-            engine.setProperty("voice", voices[0].id)
-            logger.info("TTS voice (fallback): %s", voices[0].id)
-
-        # ── Rate: 175 WPM -- slightly slower than default for clarity ──────────
-        engine.setProperty("rate", 175)
-        # ── Volume: full ───────────────────────────────────────────────────────
-        engine.setProperty("volume", 1.0)
-
-        _engine = engine
-        logger.info("pyttsx3 TTS engine initialised.")
-        return engine
-
+        logger.info(f"Initialising Piper TTS with model: {model_name}")
+        model_path, config_path = ensure_voice_exists(
+            model_name,
+            [str(PIPER_MODEL_DIR)],
+            str(PIPER_MODEL_DIR)
+        )
+        
+        _piper_voice = PiperVoice(load_model=model_path, config_path=config_path)
+        logger.info("Piper TTS engine initialised successfully.")
+        return _piper_voice
+        
     except ImportError:
-        logger.error("pyttsx3 not installed. Run: pip install pyttsx3")
+        logger.error("piper-tts not installed. Run: pip install piper-tts")
         return None
     except Exception as exc:
-        logger.error("TTS init failed: %s", exc)
+        logger.error("Piper TTS init failed: %s", exc)
         return None
 
-
 def _ensure_engine():
-    """Return the engine, initialising it if needed."""
-    global _engine
-    if _engine is None:
+    """Return the piper voice, initialising it if needed."""
+    global _piper_voice
+    if _piper_voice is None:
         init_tts()
-    return _engine
+    return _piper_voice
 
 
 # =============================================================================
@@ -119,24 +99,13 @@ def _ensure_engine():
 
 def speak(text: str) -> bool:
     """
-    Speak text aloud via the pyttsx3 SAPI5 engine.
-
-    Strips markdown formatting before speaking so code fences, asterisks, and
-    heading symbols don't get read out. Serialised with a threading.Lock so
-    only one speak() runs at a time (calling speak() while already speaking
-    will wait for the current speech to finish).
-
-    Args:
-        text: The text to speak. May contain markdown -- it will be cleaned.
-
-    Returns:
-        True if speech completed, False on error or if engine unavailable.
+    Speak text aloud via the Piper TTS engine.
     """
-    global _is_speaking
+    global _is_speaking, _play_obj
 
-    engine = _ensure_engine()
-    if engine is None:
-        logger.warning("TTS unavailable -- skipping speak().")
+    piper = _ensure_engine()
+    if piper is None:
+        logger.warning("Piper TTS unavailable -- skipping speak().")
         return False
 
     clean = _strip_markdown(text)
@@ -144,16 +113,28 @@ def speak(text: str) -> bool:
         return True
 
     try:
+        import simpleaudio as sa
         with _tts_lock:
             _is_speaking = True
             logger.info("TTS speaking: %s", clean[:80])
-            engine.say(clean)
-            engine.runAndWait()
+            
+            # Synthesize audio to memory
+            wav_io = io.BytesIO()
+            with wave.open(wav_io, "wb") as wav_file:
+                piper.synthesize(clean, wav_file)
+            
+            # Play audio
+            wav_io.seek(0)
+            wave_read = wave.open(wav_io, "rb")
+            audio_data = wave_read.readframes(wave_read.getnframes())
+            
+            _play_obj = sa.play_buffer(audio_data, wave_read.getnchannels(), wave_read.getsampwidth(), wave_read.getframerate())
+            _play_obj.wait_done()
             _is_speaking = False
+            _play_obj = None
         return True
-    except RuntimeError as exc:
-        # pyttsx3 sometimes throws if the engine loop is already running
-        logger.warning("TTS runtime error (engine busy?): %s", exc)
+    except ImportError:
+        logger.error("simpleaudio not installed. Run: pip install simpleaudio")
         _is_speaking = False
         return False
     except Exception as exc:

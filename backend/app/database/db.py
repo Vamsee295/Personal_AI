@@ -73,8 +73,24 @@ CREATE TABLE IF NOT EXISTS job_search_history (
     company     TEXT,
     location    TEXT,
     salary      TEXT,
+    skills      TEXT,
     url         TEXT,
     source      TEXT,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+CREATE_SAVED_JOBS = """
+CREATE TABLE IF NOT EXISTS saved_jobs (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    title       TEXT NOT NULL,
+    company     TEXT,
+    location    TEXT,
+    salary      TEXT,
+    skills      TEXT,
+    url         TEXT,
+    source      TEXT,
+    score       REAL DEFAULT 0.0,
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 """
@@ -91,6 +107,53 @@ CREATE TABLE IF NOT EXISTS job_application_history (
 );
 """
 
+CREATE_PENDING_APPLICATIONS = """
+CREATE TABLE IF NOT EXISTS pending_applications (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    company     TEXT NOT NULL,
+    role        TEXT NOT NULL,
+    status      TEXT DEFAULT 'prepared', -- prepared | approved | submitted | failed
+    timestamp   DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+CREATE_USER_PREFERENCES = """
+CREATE TABLE IF NOT EXISTS user_preferences (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    key         TEXT UNIQUE NOT NULL,
+    value       TEXT NOT NULL
+);
+"""
+
+CREATE_JOB_HISTORY = """
+CREATE TABLE IF NOT EXISTS job_history (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    company     TEXT NOT NULL,
+    role        TEXT NOT NULL,
+    status      TEXT NOT NULL,
+    timestamp   DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+CREATE_TASK_HISTORY = """
+CREATE TABLE IF NOT EXISTS task_history (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    task        TEXT NOT NULL,
+    result      TEXT NOT NULL,
+    timestamp   DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+CREATE_TASK_CHECKPOINTS = """
+CREATE TABLE IF NOT EXISTS task_checkpoints (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id     TEXT UNIQUE NOT NULL,
+    state       TEXT NOT NULL, -- e.g., "searching", "extracting", "completed"
+    context     TEXT,          -- JSON string of context/memory
+    timestamp   DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
 async def init_db() -> None:
     """Create all tables if they do not exist."""
     async with aiosqlite.connect(DB_PATH) as db:
@@ -99,7 +162,13 @@ async def init_db() -> None:
         await db.execute(CREATE_ACTIVITY)
         await db.execute(CREATE_FILES_HISTORY)
         await db.execute(CREATE_JOB_SEARCH_HISTORY)
+        await db.execute(CREATE_SAVED_JOBS)
         await db.execute(CREATE_JOB_APPLICATION_HISTORY)
+        await db.execute(CREATE_PENDING_APPLICATIONS)
+        await db.execute(CREATE_USER_PREFERENCES)
+        await db.execute(CREATE_JOB_HISTORY)
+        await db.execute(CREATE_TASK_HISTORY)
+        await db.execute(CREATE_TASK_CHECKPOINTS)
         await db.commit()
     logger.info("Database initialised at %s", DB_PATH.resolve())
 
@@ -116,6 +185,55 @@ async def create_task(title: str, description: str = "", priority: int = 3) -> i
         )
         await db.commit()
         return cursor.lastrowid
+
+async def create_pending_application(company: str, role: str, status: str = 'prepared') -> int:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "INSERT INTO pending_applications (company, role, status) VALUES (?, ?, ?)",
+            (company, role, status),
+        )
+        await db.commit()
+        return cursor.lastrowid
+
+async def update_pending_application_status(app_id: int, status: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE pending_applications SET status = ?, timestamp = CURRENT_TIMESTAMP WHERE id = ?",
+            (status, app_id),
+        )
+        await db.commit()
+
+async def log_job_history(company: str, role: str, status: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO job_history (company, role, status) VALUES (?, ?, ?)",
+            (company, role, status),
+        )
+        await db.commit()
+
+async def log_task_history(task: str, result: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO task_history (task, result) VALUES (?, ?)",
+            (task, result),
+        )
+        await db.commit()
+
+async def save_task_checkpoint(task_id: str, state: str, context: str = "{}") -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO task_checkpoints (task_id, state, context) VALUES (?, ?, ?)",
+            (task_id, state, context),
+        )
+        await db.commit()
+
+async def load_task_checkpoint(task_id: str) -> dict | None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("SELECT state, context FROM task_checkpoints WHERE task_id = ?", (task_id,))
+        row = await cursor.fetchone()
+        if row:
+            return {"state": row[0], "context": row[1]}
+        return None
 
 
 async def list_tasks(status: str | None = None) -> list[dict]:
@@ -173,11 +291,24 @@ async def log_activity(action: str, details: str = "") -> None:
 #  Job Agent helpers
 # ══════════════════════════════════════════════════════════════════
 
-async def log_job_search(title: str, company: str, location: str, salary: str, url: str, source: str) -> int:
+import json
+
+async def log_job_search(title: str, company: str, location: str, salary: str, skills: list[str], url: str, source: str) -> int:
     async with aiosqlite.connect(DB_PATH) as db:
+        skills_str = json.dumps(skills)
         cursor = await db.execute(
-            "INSERT INTO job_search_history (title, company, location, salary, url, source) VALUES (?, ?, ?, ?, ?, ?)",
-            (title, company, location, salary, url, source),
+            "INSERT INTO job_search_history (title, company, location, salary, skills, url, source) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (title, company, location, salary, skills_str, url, source),
+        )
+        await db.commit()
+        return cursor.lastrowid
+
+async def save_job(title: str, company: str, location: str, salary: str, skills: list[str], url: str, source: str, score: float = 0.0) -> int:
+    async with aiosqlite.connect(DB_PATH) as db:
+        skills_str = json.dumps(skills)
+        cursor = await db.execute(
+            "INSERT INTO saved_jobs (title, company, location, salary, skills, url, source, score) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (title, company, location, salary, skills_str, url, source, score),
         )
         await db.commit()
         return cursor.lastrowid

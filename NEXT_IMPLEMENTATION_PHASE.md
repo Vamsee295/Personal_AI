@@ -28,7 +28,7 @@ The immediate goal is to enable "Job application assistance" and general "Browse
 
 3. **Enhance the Multi-Step Agent State (`agent_loop.py`)**
    - **Action**: Add conversational/action context tracking.
-   - **Implementation**: When the loop runs, pass the *last 5 actions and their results* back into the LLM prompt.
+   - **Implementation**: When the loop runs, pass the *last 5 actions and their results* back into the LLM prompt. 
    - E.g., `History: [Agent navigated to indeed.com -> Success. Agent clicked 'Login' -> Success. Current Screen: Login Page]`.
    - **Benefit**: This allows the agent to execute complex, multi-step tasks like a job application, because it remembers what step of the process it is currently on.
 

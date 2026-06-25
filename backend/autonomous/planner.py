@@ -27,7 +27,21 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
-            "name": "navigate_browser",
+            "name": "search_web",
+            "description": "Search the internet for a query.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "The search query."}
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "open_page",
             "description": "Navigate to a specific URL in the browser.",
             "parameters": {
                 "type": "object",
@@ -41,7 +55,7 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
-            "name": "browser_click",
+            "name": "click_element",
             "description": "Click an element on the current webpage.",
             "parameters": {
                 "type": "object",
@@ -55,7 +69,7 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
-            "name": "browser_fill",
+            "name": "fill_form",
             "description": "Fill a text input on the current webpage.",
             "parameters": {
                 "type": "object",
@@ -70,7 +84,7 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
-            "name": "browser_read",
+            "name": "extract_page",
             "description": "Get the text content of the current webpage.",
             "parameters": {
                 "type": "object",
@@ -124,24 +138,83 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
-            "name": "review_application",
-            "description": "Review the job application and request user confirmation before final submission.",
+            "name": "application_action",
+            "description": "Perform an action related to filling out and reviewing a job application.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "job_title": {"type": "string", "description": "The title of the job being applied for."},
-                    "company": {"type": "string", "description": "The company name."},
-                    "fields": {"type": "object", "description": "Key-value pairs of the fields filled out in the application."}
+                    "action_type": {"type": "string", "enum": ["open", "upload_resume", "get_details", "review"], "description": "The application action to perform."},
+                    "url": {"type": "string", "description": "The URL to open (if action_type is 'open')."},
+                    "selector": {"type": "string", "description": "The file input selector (if action_type is 'upload_resume')."},
+                    "company": {"type": "string", "description": "Company name (if action_type is 'review')."},
+                    "role": {"type": "string", "description": "Role name (if action_type is 'review')."},
+                    "fields_filled": {"type": "object", "description": "Key-value pairs of filled fields (if action_type is 'review')."},
+                    "missing_fields": {"type": "array", "items": {"type": "string"}, "description": "List of missing fields (if action_type is 'review')."}
                 },
-                "required": ["job_title", "company", "fields"]
+                "required": ["action_type"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "youtube_action",
+            "description": "Perform an action on YouTube.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action_type": {"type": "string", "enum": ["search", "open_video", "play", "open_playlist"], "description": "The action to perform on YouTube."},
+                    "query": {"type": "string", "description": "The search query or URL/ID to open."}
+                },
+                "required": ["action_type"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "score_job",
+            "description": "Score a job based on the user's resume and profile.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "Job title."},
+                    "company": {"type": "string", "description": "Company name."},
+                    "location": {"type": "string", "description": "Job location."},
+                    "skills": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Required skills for the job."
+                    }
+                },
+                "required": ["title", "company"]
             }
         }
     }
 ]
 
+def get_available_tools() -> list:
+    """Filter TOOLS_SCHEMA based on tool_health."""
+    from app.services.tool_health import tool_health
+    health = tool_health.get_health()
+    available = []
+    
+    for tool in TOOLS_SCHEMA:
+        name = tool["function"]["name"]
+        
+        # Check browser tools
+        if name in ["search_web", "open_page", "click_element", "fill_form", "extract_page", "search_jobs", "application_action", "youtube_action"]:
+            if health.get("browser", {}).get("available"):
+                available.append(tool)
+        # Assuming log_thought and score_job only require Ollama/Memory, which are implicitly checked if this code runs
+        else:
+            available.append(tool)
+            
+    return available
+
 def plan(ai_response: Any) -> Dict[str, Any]:
     """
-    Parses the tool-call object returned from Ollama and maps it to specific
+    Parses the tool-call object returned from Ollama and maps it to specific 
     functional commands the Executor understands.
     """
     if isinstance(ai_response, dict) and "tool_calls" in ai_response:
@@ -152,12 +225,12 @@ def plan(ai_response: Any) -> Dict[str, Any]:
             "action": func.get("name"),
             "args": func.get("arguments", {})
         }
-
+    
     # If the AI just responded with plain text instead of a tool call
     if isinstance(ai_response, str):
         response_lower = ai_response.lower()
         if "none" in response_lower or "no action required" in response_lower:
             return {"action": "none"}
         return {"action": "log_thought", "args": {"thought": ai_response}}
-
+    
     return {"action": "none"}

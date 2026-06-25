@@ -11,7 +11,7 @@ The agent natively supports structured querying and initial listing extraction f
 
 ## Testing the Search Workflow
 
-**Prompt:**
+**Prompt:** 
 > "Search LinkedIn for remote React Developer jobs in London."
 
 **Expected Behavior:**

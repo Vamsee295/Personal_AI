@@ -1,0 +1,7 @@
+{
+  "memory_test.py": true,
+  "test_executor.py": true,
+  "test_screen.py": true,
+  "vision_test.py": true,
+  "whatsapp_test.py": true
+}
