@@ -37,6 +37,10 @@ async def run_autonomous_loop():
     """
     global main_event_loop
     main_event_loop = asyncio.get_running_loop()
+
+    from app.system.diagnostics import run_startup_diagnostics
+    await run_startup_diagnostics()
+
     logger.info("🚀 Starting Autonomous Agent Loop...")
     
     # Keeping track of what it saw last to avoid spamming the same thought
@@ -45,8 +49,18 @@ async def run_autonomous_loop():
     # Memory for multi-step execution (last 20 actions)
     action_history = []
 
+    from app.utils.performance import performance_monitor
+    import time
+    from app.database.db import load_task_checkpoint
+
+    # Recovery Task Evaluation
+    # Note: Normally you'd want the UI or prompt to determine which task to resume.
+    # For now, we seed history if there's a hardcoded recent task, but realistically
+    # JARVIS will rely on `task_history` DB fed into `brain.py` context to naturally pick up.
+
     while True:
         try:
+            loop_start = time.time()
             queue = get_voice_queue()
             # Check for direct voice commands injected from the VoiceAgent thread
             if not queue.empty():
@@ -93,12 +107,20 @@ async def run_autonomous_loop():
                 ai_thought = await think(combined_context, action_history=action_history)
                 
                 # 3. Plan
+                plan_start = time.time()
                 action_plan = plan(ai_thought)
+                performance_monitor.log_metric("planning_times_ms", (time.time() - plan_start) * 1000)
                 
                 # 4. Execute
+                exec_start = time.time()
                 result = await execute_plan(action_plan)
+                performance_monitor.log_metric("tool_execution_times_ms", (time.time() - exec_start) * 1000)
                 
                 logger.info("Agent Step Complete | Plan: %s | Result: %s", action_plan.get('action'), result)
+
+                # Trigger report generation occasionally
+                if len(action_history) > 0 and len(action_history) % 10 == 0:
+                    performance_monitor.generate_report()
 
                 # Update History
                 action_history.append({

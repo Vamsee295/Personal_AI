@@ -144,6 +144,16 @@ CREATE TABLE IF NOT EXISTS task_history (
 );
 """
 
+CREATE_TASK_CHECKPOINTS = """
+CREATE TABLE IF NOT EXISTS task_checkpoints (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id     TEXT UNIQUE NOT NULL,
+    state       TEXT NOT NULL, -- e.g., "searching", "extracting", "completed"
+    context     TEXT,          -- JSON string of context/memory
+    timestamp   DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
 async def init_db() -> None:
     """Create all tables if they do not exist."""
     async with aiosqlite.connect(DB_PATH) as db:
@@ -158,6 +168,7 @@ async def init_db() -> None:
         await db.execute(CREATE_USER_PREFERENCES)
         await db.execute(CREATE_JOB_HISTORY)
         await db.execute(CREATE_TASK_HISTORY)
+        await db.execute(CREATE_TASK_CHECKPOINTS)
         await db.commit()
     logger.info("Database initialised at %s", DB_PATH.resolve())
 
@@ -207,6 +218,22 @@ async def log_task_history(task: str, result: str) -> None:
             (task, result),
         )
         await db.commit()
+
+async def save_task_checkpoint(task_id: str, state: str, context: str = "{}") -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO task_checkpoints (task_id, state, context) VALUES (?, ?, ?)",
+            (task_id, state, context),
+        )
+        await db.commit()
+
+async def load_task_checkpoint(task_id: str) -> dict | None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("SELECT state, context FROM task_checkpoints WHERE task_id = ?", (task_id,))
+        row = await cursor.fetchone()
+        if row:
+            return {"state": row[0], "context": row[1]}
+        return None
 
 
 async def list_tasks(status: str | None = None) -> list[dict]:

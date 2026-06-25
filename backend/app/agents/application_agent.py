@@ -30,11 +30,15 @@ class ApplicationAgent:
 
     async def open_application(self, url: str) -> Dict[str, Any]:
         """Navigate to the job application URL."""
+        from app.database.db import save_task_checkpoint
+        await save_task_checkpoint(f"application_{url}", "opened")
         logger.info(f"Opening application URL: {url}")
         return await browser_agent.goto_url(url)
 
     async def upload_resume(self, selector: str) -> Dict[str, Any]:
         """Upload the user's resume using Playwright's set_input_files on an <input type=file>."""
+        from app.database.db import save_task_checkpoint
+        await save_task_checkpoint(f"application_resume_upload_{selector}", "uploading")
         logger.info(f"Attempting to upload resume to selector: {selector}")
         profile = self._load_profile()
         resume_path = profile.get("resume_path")

@@ -23,18 +23,37 @@ class BrowserAgent:
         self._lock: Optional[asyncio.Lock] = None
 
     async def _ensure_started(self):
-        """Starts Playwright and the browser if not already running."""
+        """Starts Playwright and the browser if not already running or closed."""
         if self._lock is None:
             self._lock = asyncio.Lock()
 
         async with self._lock:
+            # Check if page is closed manually
+            if self._page and self._page.is_closed():
+                logger.warning("Browser page was closed. Recreating context...")
+                self._page = None
+                self._context = None
+
             if self._playwright is None:
                 logger.info("Starting Playwright...")
                 self._playwright = await async_playwright().start()
-                self._browser = await self._playwright.chromium.launch(headless=False) # Headless=False so the user can see the agent's actions
+                self._browser = await self._playwright.chromium.launch(headless=False)
+
+            if self._context is None:
                 self._context = await self._browser.new_context(viewport={"width": 1280, "height": 720})
+
+            if self._page is None:
                 self._page = await self._context.new_page()
 
+    async def recover(self):
+        """Force a full recreation of the browser state."""
+        logger.warning("Initiating full browser recovery...")
+        await self.close()
+        await self._ensure_started()
+
+    from app.utils.retry import async_retry
+
+    @async_retry(max_retries=2, initial_backoff=2.0)
     async def search_web(self, query: str) -> Dict[str, Any]:
         """Search the web using DuckDuckGo (or generic search engine)."""
         try:
@@ -42,12 +61,14 @@ class BrowserAgent:
             import urllib.parse
             encoded_query = urllib.parse.quote_plus(query)
             url = f"https://duckduckgo.com/?q={encoded_query}"
-            await self._page.goto(url, wait_until="networkidle")
+            await self._page.goto(url, wait_until="networkidle", timeout=15000)
             return {"success": True, "message": f"Searched web for '{query}'"}
         except Exception as e:
             logger.error("Failed to search web: %s", e)
-            return {"success": False, "error": str(e)}
+            await self.recover()
+            raise # Let retry framework handle it
 
+    @async_retry(max_retries=2, initial_backoff=2.0)
     async def goto_url(self, url: str) -> Dict[str, Any]:
         """Navigate to a URL."""
         try:
@@ -55,11 +76,12 @@ class BrowserAgent:
             # Playwright requires http:// or https://
             if not url.startswith("http"):
                 url = f"https://{url}"
-            await self._page.goto(url, wait_until="networkidle")
+            await self._page.goto(url, wait_until="networkidle", timeout=15000)
             return {"success": True, "message": f"Navigated to {url}"}
         except Exception as e:
             logger.error("Failed to goto URL: %s", e)
-            return {"success": False, "error": str(e)}
+            await self.recover()
+            raise
 
     async def get_page_content(self) -> Dict[str, Any]:
         """Get text content of the page, stripped of raw HTML, representing what the user sees."""
@@ -92,6 +114,7 @@ class BrowserAgent:
             logger.error("Failed to get page state: %s", e)
             return {"success": False, "error": str(e)}
 
+    @async_retry(max_retries=2, initial_backoff=1.0)
     async def click_element(self, selector: str) -> Dict[str, Any]:
         """Click on a specific element by CSS or text selector."""
         try:
@@ -108,8 +131,9 @@ class BrowserAgent:
             return {"success": True, "message": f"Clicked on '{selector}'"}
         except Exception as e:
             logger.error("Failed to click element: %s", e)
-            return {"success": False, "error": f"Could not find or click '{selector}'. Exception: {str(e)}"}
+            raise
 
+    @async_retry(max_retries=2, initial_backoff=1.0)
     async def fill_input(self, selector: str, text: str) -> Dict[str, Any]:
         """Fill an input field with text."""
         try:
@@ -127,7 +151,7 @@ class BrowserAgent:
             return {"success": True, "message": f"Filled '{selector}' with text."}
         except Exception as e:
             logger.error("Failed to fill input: %s", e)
-            return {"success": False, "error": f"Could not find or fill '{selector}'. Exception: {str(e)}"}
+            raise
 
     async def screenshot(self, path: Optional[str] = None) -> Dict[str, Any]:
         """Take a screenshot of the current page."""

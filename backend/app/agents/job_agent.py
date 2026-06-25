@@ -54,6 +54,10 @@ class JobAgent:
 
     async def search_linkedin_jobs(self, query: str, location: str = "") -> Dict[str, Any]:
         """Search LinkedIn for jobs."""
+        from app.database.db import save_task_checkpoint
+        task_id = f"linkedin_search_{query}_{location}"
+        await save_task_checkpoint(task_id, "searching")
+
         logger.info(f"Searching LinkedIn for {query} in {location}")
 
         url_query = query.replace(" ", "%20")
@@ -64,10 +68,12 @@ class JobAgent:
         # Wait a bit for dynamic content to load
         await asyncio.sleep(3)
 
+        await save_task_checkpoint(task_id, "extracting")
         jobs = await self._extract_jobs_from_page(source="LinkedIn")
         for j in jobs:
             await log_job_search(j.title, j.company, j.location, j.salary, j.skills, j.url, j.source)
 
+        await save_task_checkpoint(task_id, "completed")
         return {"success": True, "source": "LinkedIn", "jobs_found": len(jobs), "message": f"Found {len(jobs)} jobs on LinkedIn."}
 
     async def search_internshala_jobs(self, query: str) -> Dict[str, Any]:

@@ -193,6 +193,25 @@ TOOLS_SCHEMA = [
     }
 ]
 
+def get_available_tools() -> list:
+    """Filter TOOLS_SCHEMA based on tool_health."""
+    from app.services.tool_health import tool_health
+    health = tool_health.get_health()
+    available = []
+
+    for tool in TOOLS_SCHEMA:
+        name = tool["function"]["name"]
+
+        # Check browser tools
+        if name in ["search_web", "open_page", "click_element", "fill_form", "extract_page", "search_jobs", "application_action", "youtube_action"]:
+            if health.get("browser", {}).get("available"):
+                available.append(tool)
+        # Assuming log_thought and score_job only require Ollama/Memory, which are implicitly checked if this code runs
+        else:
+            available.append(tool)
+
+    return available
+
 def plan(ai_response: Any) -> Dict[str, Any]:
     """
     Parses the tool-call object returned from Ollama and maps it to specific
