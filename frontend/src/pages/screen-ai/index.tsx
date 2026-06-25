@@ -324,7 +324,7 @@ const ScreenAI = () => {
                       </div>
                     </div>
 
-                    {/* AI Analysis */}
+                    {/* AI Analysis (Now explicitly parsing structured JSON if possible) */}
                     <button
                       onClick={() => setShowExplain((v) => !v)}
                       className="w-full flex items-center justify-between px-4 py-3 bg-secondary/40 border border-border rounded-xl text-[13px] text-foreground hover:bg-accent/40 transition-colors"
@@ -343,7 +343,22 @@ const ScreenAI = () => {
                            <Zap className="w-3.5 h-3.5 text-primary" /> AI Diagnosis:
                         </p>
                         <div className="text-muted-foreground whitespace-pre-wrap font-sans">
-                           {result.analysis}
+                           {(() => {
+                             try {
+                               // Attempt to pretty print JSON if the agent output is the structured schema
+                               const parsed = JSON.parse(result.analysis);
+                               return (
+                                 <div className="space-y-2">
+                                   {parsed.extracted_text && <div><strong>Extracted:</strong> {parsed.extracted_text}</div>}
+                                   {parsed.coordinates && <div><strong>Coordinates:</strong> X:{parsed.coordinates.x}, Y:{parsed.coordinates.y}</div>}
+                                   {parsed.reasoning && <div><strong>Reasoning:</strong> {parsed.reasoning}</div>}
+                                 </div>
+                               );
+                             } catch {
+                               // Fallback to raw string
+                               return result.analysis;
+                             }
+                           })()}
                         </div>
                       </div>
                     )}

@@ -63,6 +63,44 @@ async def execute_plan(plan: Dict[str, Any]) -> str:
         result = legacy_take_screenshot({})
         return f"Screenshot taken: {result.get('file_path')}"
 
+    # --- Vision Agent Tools ---
+    elif action == "vision_capture":
+        from app.agents.vision_module import capture_full_screen
+        import asyncio
+        await asyncio.to_thread(capture_full_screen, True)
+        return "Screen captured and saved."
+
+    elif action == "vision_ocr":
+        from app.agents.vision_module import extract_text_from_screen
+        import asyncio
+        text = await asyncio.to_thread(extract_text_from_screen)
+        return f"OCR Text Extracted: {text[:500]}..." if text else "No text found."
+
+    elif action == "vision_analyze":
+        goal = args.get("goal")
+        from app.agents.vision_module import extract_text_from_screen, analyze_screen_with_llm
+        from app.config import settings
+        import asyncio
+        text = await asyncio.to_thread(extract_text_from_screen)
+        res = await asyncio.to_thread(analyze_screen_with_llm, goal, text, ollama_url=settings.OLLAMA_BASE_URL, model=settings.DEFAULT_MODEL)
+        return str(res)
+
+    elif action == "vision_read_error":
+        from app.agents.vision_module import extract_text_from_screen, analyze_screen_with_llm
+        from app.config import settings
+        import asyncio
+        text = await asyncio.to_thread(extract_text_from_screen)
+        res = await asyncio.to_thread(analyze_screen_with_llm, "Read and extract any error message or traceback", text, ollama_url=settings.OLLAMA_BASE_URL, model=settings.DEFAULT_MODEL)
+        return str(res)
+
+    elif action == "vision_describe_screen":
+        from app.agents.vision_module import extract_text_from_screen, analyze_screen_with_llm
+        from app.config import settings
+        import asyncio
+        text = await asyncio.to_thread(extract_text_from_screen)
+        res = await asyncio.to_thread(analyze_screen_with_llm, "Describe the current screen layout, active window, and visible content", text, ollama_url=settings.OLLAMA_BASE_URL, model=settings.DEFAULT_MODEL)
+        return str(res)
+
     # --- Browser Agent Tools ---
     elif action == "search_web":
         query = args.get("query")

@@ -27,6 +27,68 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
+            "name": "vision_capture",
+            "description": "Capture the screen for the Vision Agent to analyze.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "vision_ocr",
+            "description": "Extract raw text from the screen using OCR.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "vision_analyze",
+            "description": "Analyze the screen with the Vision Agent to find UI elements, buttons, or inputs.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "goal": {"type": "string", "description": "What you want to find or understand (e.g. 'find login button')."}
+                },
+                "required": ["goal"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "vision_read_error",
+            "description": "Analyze the screen specifically to read and extract error dialogs or tracebacks.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "vision_describe_screen",
+            "description": "Get a description and summary of the current visible screen/window.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "type_text",
             "description": "Type text on the keyboard (e.g., into an active desktop application window).",
             "parameters": {
@@ -294,6 +356,9 @@ def get_available_tools() -> list:
         # Check browser tools
         if name in ["search_web", "open_page", "click_element", "fill_form", "extract_page", "search_jobs", "application_action", "youtube_action", "scroll_page", "summarize_page", "download_file"]:
             if health.get("browser", {}).get("available"):
+                available.append(tool)
+        elif name.startswith("vision_"):
+            if health.get("vision", {}).get("available", True):
                 available.append(tool)
         # Assuming log_thought and score_job only require Ollama/Memory, which are implicitly checked if this code runs
         else:
