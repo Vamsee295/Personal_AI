@@ -17,9 +17,7 @@ from pathlib import Path
 # Make sure the app package is importable when running from backend/
 sys.path.insert(0, str(Path(__file__).parent))
 
-from app.config import settings
 from app.database.db import init_db, log_activity
-from app.services.ai_service import ai_service
 from app.utils.logger import get_logger
 
 logger = get_logger("daemon")

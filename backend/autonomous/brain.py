@@ -1,19 +1,19 @@
+from app.services.ai_service import ai_service
+from app.utils.logger import get_logger
+from typing import Any, List, Dict
+from app.services.memory_manager import memory_manager
+import json
+
 """
 brain.py – The core reasoning engine for the autonomous agent.
 """
 
-from app.services.ai_service import ai_service
-from app.utils.logger import get_logger
 
 logger = get_logger("brain")
 
-from typing import Any, List, Dict
-from autonomous.planner import TOOLS_SCHEMA
 
-from app.services.memory_manager import memory_manager
-import json
 
-async def think(context: str, action_history: List[Dict[str, str]] = None, model: str = "qwen2.5-coder:7b") -> Any:
+async def think(task_id: str, context: str, action_history: List[Dict[str, str]] = None, model: str = "qwen2.5-coder:7b", error_feedback: str = None) -> Any:
     """
     Given environmental context and action history, ask the AI to decide
     what action it should take using native tool calling. Integrates long term memory.
@@ -32,7 +32,10 @@ async def think(context: str, action_history: List[Dict[str, str]] = None, model
         for act in action_history:
             history_str += f"- Action: {act.get('action')} | Result: {act.get('result')}\n"
 
-    # 2. Fetch tool health
+    if error_feedback:
+        history_str += f"\n\nWARNING: The last action FAILED with error: {error_feedback}\nYou MUST re-evaluate your plan and try a different approach.\n"
+
+        # 2. Fetch tool health
     from app.services.tool_health import tool_health
     health_status = tool_health.get_health()
     unavailable_tools = [k for k, v in health_status.items() if not v.get("available")]

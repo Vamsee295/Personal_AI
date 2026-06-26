@@ -5,9 +5,8 @@ core/workspace_manager.py – Tracks open projects, indexes files, and provides 
 from __future__ import annotations
 import os
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Set
 
-from app.config import settings
 from app.core.security import assert_path_allowed
 from app.utils.logger import get_logger
 

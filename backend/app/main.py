@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.api import chat_routes, file_routes, terminal_routes, agent_routes, system_routes, voice_routes, screen_routes, executor_routes, vision_routes, whatsapp_routes, health_routes, memory_routes, voice_ws_routes
+from app.api import ws_routes, chat_routes, file_routes, terminal_routes, agent_routes, system_routes, voice_routes, screen_routes, executor_routes, vision_routes, whatsapp_routes, health_routes, memory_routes, voice_ws_routes
 from app.utils.logger import get_logger
 
 logger = get_logger("main")
@@ -84,6 +84,7 @@ app.include_router(whatsapp_routes.router)
 app.include_router(health_routes.router)
 app.include_router(memory_routes.router)
 app.include_router(voice_ws_routes.router)
+app.include_router(ws_routes.router)
 
 
 # ── Root ───────────────────────────────────────────────────────────

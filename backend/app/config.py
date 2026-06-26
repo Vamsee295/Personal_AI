@@ -4,7 +4,6 @@ All settings are read from environment variables (or .env file via pydantic-sett
 """
 
 from __future__ import annotations
-from pathlib import Path
 from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 

@@ -91,7 +91,7 @@ try:
             print(f"  {i:02d}: {line}")
         if len(text.splitlines()) > 30:
             print(f"  ... ({len(text.splitlines()) - 30} more lines)")
-        print(f"  --- END OF OCR OUTPUT ---\n")
+        print("  --- END OF OCR OUTPUT ---\n")
         record("Active window OCR", True, f"{len(text)} characters extracted")
     else:
         print("  WARNING: OCR returned empty text.")
@@ -102,9 +102,9 @@ except pytesseract.TesseractNotFoundError if False else Exception as e:
     # Catch both TesseractNotFoundError and generic errors
     error_msg = str(e)
     if "TesseractNotFound" in type(e).__name__ or "tesseract" in error_msg.lower():
-        print(f"\n  [!] TESSERACT NOT FOUND")
-        print(f"  Install with: winget install UB-Mannheim.TesseractOCR")
-        print(f"  Then restart your terminal and run this test again.")
+        print("\n  [!] TESSERACT NOT FOUND")
+        print("  Install with: winget install UB-Mannheim.TesseractOCR")
+        print("  Then restart your terminal and run this test again.")
     else:
         print(f"  ERROR: {e}")
     record("Active window OCR", False, error_msg[:120])

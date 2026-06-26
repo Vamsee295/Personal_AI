@@ -22,7 +22,6 @@ import json
 import logging
 import re
 import threading
-import time
 from typing import Optional
 
 logger = logging.getLogger("voice_agent")
@@ -63,9 +62,9 @@ def generate_spoken_response(action: dict, result: dict) -> str:
     responses = {
         "open_app":              f"Done, I've opened {target or 'the application'} for you.",
         "open_url":              f"Done, I've opened {target or 'the website'} in your browser.",
-        "type_text":             f"Done, I've typed that for you.",
+        "type_text":             "Done, I've typed that for you.",
         "press_key":             f"Done, I pressed {value or target}.",
-        "mouse_click":           f"Done, I clicked at the target location.",
+        "mouse_click":           "Done, I clicked at the target location.",
         "take_screenshot":       "I've taken a screenshot and saved it.",
         "move_mouse":            "Done, I moved the mouse.",
         "scroll":                f"Done, I scrolled {value or 'the page'}.",

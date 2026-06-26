@@ -9,6 +9,7 @@ Tables:
 """
 
 from __future__ import annotations
+import json
 import aiosqlite
 from pathlib import Path
 from app.utils.logger import get_logger
@@ -291,7 +292,6 @@ async def log_activity(action: str, details: str = "") -> None:
 #  Job Agent helpers
 # ══════════════════════════════════════════════════════════════════
 
-import json
 
 async def log_job_search(title: str, company: str, location: str, salary: str, skills: list[str], url: str, source: str) -> int:
     async with aiosqlite.connect(DB_PATH) as db:

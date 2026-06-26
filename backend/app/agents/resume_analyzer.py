@@ -4,7 +4,7 @@ agents/resume_analyzer.py -- Reads and parses PDF resumes to extract user skills
 
 from __future__ import annotations
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 import fitz  # PyMuPDF
 from app.services.ai_service import ai_service
@@ -52,7 +52,8 @@ class ResumeAnalyzer:
             if isinstance(result_str, dict):
                 result_str = result_str.get("content", "{}")
 
-            import re, json
+            import re
+            import json
             match = re.search(r"\{.*\}", result_str, re.DOTALL)
             if match:
                 data = json.loads(match.group(0))

@@ -4,7 +4,6 @@ services/terminal_service.py – Safe subprocess-based command execution.
 
 from __future__ import annotations
 import asyncio
-import subprocess
 import sys
 from typing import AsyncIterator, Optional, Tuple
 

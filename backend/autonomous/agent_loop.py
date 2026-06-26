@@ -50,7 +50,7 @@ async def run_autonomous_loop():
     logger.info("🚀 Starting Autonomous Agent Loop...")
     
     # Keeping track of what it saw last to avoid spamming the same thought
-    last_context = ""
+
     
     from app.utils.performance import performance_monitor
     import time
@@ -61,7 +61,7 @@ async def run_autonomous_loop():
 
     while True:
         try:
-            loop_start = time.time()
+
             queue = get_orchestrator_queue()
 
             # Check for new commands from the API or Voice
@@ -152,7 +152,7 @@ async def run_autonomous_loop():
                         agent = VoiceAgent.get_instance()
                         if agent and hasattr(agent, 'on_task_completed'):
                             agent.on_task_completed(current_task_id, success=(action == "task_completed"), message=msg)
-                    except Exception as e:
+                    except Exception:
                         pass
 
                     current_task_id = None
@@ -199,7 +199,7 @@ async def run_autonomous_loop():
                             agent = VoiceAgent.get_instance()
                             if agent and hasattr(agent, 'on_task_completed'):
                                 agent.on_task_completed(current_task_id, success=False, message="Max retries exceeded.")
-                        except Exception as e:
+                        except Exception:
                             pass
 
                         current_task_id = None

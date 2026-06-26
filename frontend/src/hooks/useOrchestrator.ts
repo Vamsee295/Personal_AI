@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
-const BACKEND_WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000/ws/events";
+const BACKEND_WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000/ws/orchestrator";
 const BACKEND_API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
 export interface BrainEvent {

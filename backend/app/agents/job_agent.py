@@ -12,7 +12,7 @@ from pathlib import Path
 from app.models.schemas import JobResult
 from automation.browser_agent import browser_agent
 from app.services.ai_service import ai_service
-from app.database.db import log_job_search, log_job_application
+from app.database.db import log_job_search
 
 logger = logging.getLogger("job_agent")
 

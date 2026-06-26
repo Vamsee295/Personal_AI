@@ -11,12 +11,10 @@ INSTALL:
 from __future__ import annotations
 
 import io
-import os
 import wave
 import logging
 import re
 import threading
-from typing import Optional
 from pathlib import Path
 
 logger = logging.getLogger("voice_output")
