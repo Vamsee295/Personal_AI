@@ -139,18 +139,12 @@ async def execute_plan(plan: Dict[str, Any]) -> str:
         location = args.get("location", "")
         from app.agents.job_agent import job_agent
         
-        if platform == "linkedin":
-            res = await job_agent.search_linkedin_jobs(query, location)
-        elif platform == "internshala":
-            res = await job_agent.search_internshala_jobs(query)
-        elif platform == "wellfound":
-            res = await job_agent.search_wellfound_jobs(query)
-        elif platform == "naukri":
-            res = await job_agent.search_naukri_jobs(query)
-        else:
-            return f"Error: Unknown job platform '{platform}'"
+        res = await job_agent.search_jobs(platform, query, location)
             
-        return res.get("message") or res.get("error")
+        if res.get("success"):
+             top = res.get("top_matches", [])
+             return f"{res.get('message')} Top Matches: {top}"
+        return res.get("error", "Failed to search jobs")
         
     # --- Application Agent Tools ---
     elif action == "application_action":

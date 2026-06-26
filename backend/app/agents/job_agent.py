@@ -52,77 +52,74 @@ class JobAgent:
             logger.error("Failed to extract jobs: %s", e)
             return []
 
-    async def search_linkedin_jobs(self, query: str, location: str = "") -> Dict[str, Any]:
-        """Search LinkedIn for jobs."""
+    async def search_jobs(self, platform: str, query: str, location: str = "") -> Dict[str, Any]:
+        """Generic job search router that aggregates extraction and scoring."""
+        platform = platform.lower()
+
         from app.database.db import save_task_checkpoint
-        task_id = f"linkedin_search_{query}_{location}"
+        task_id = f"{platform}_search_{query}_{location}"
         await save_task_checkpoint(task_id, "searching")
 
-        logger.info(f"Searching LinkedIn for {query} in {location}")
+        logger.info(f"Searching {platform} for '{query}' in '{location}'")
         
-        url_query = query.replace(" ", "%20")
-        url_location = location.replace(" ", "%20")
-        url = f"https://www.linkedin.com/jobs/search?keywords={url_query}&location={url_location}"
-        
+        url = ""
+        if platform == "linkedin":
+            url_query = query.replace(" ", "%20")
+            url_location = location.replace(" ", "%20")
+            url = f"https://www.linkedin.com/jobs/search?keywords={url_query}&location={url_location}"
+        elif platform == "internshala":
+            url_query = query.replace(" ", "%20")
+            url = f"https://internshala.com/internships/keywords-{url_query}"
+        elif platform == "wellfound":
+            url_query = query.replace(" ", "+")
+            url = f"https://wellfound.com/role/l/{url_query}"
+        elif platform == "naukri":
+            url_query = query.replace(" ", "-")
+            url = f"https://www.naukri.com/{url_query}-jobs"
+        else:
+            return {"success": False, "error": f"Unsupported platform: {platform}"}
+
+        # Navigate
         await browser_agent.goto_url(url)
-        # Wait a bit for dynamic content to load
-        await asyncio.sleep(3) 
+        await asyncio.sleep(3) # Let page load
 
         await save_task_checkpoint(task_id, "extracting")
-        jobs = await self._extract_jobs_from_page(source="LinkedIn")
+        jobs = await self._extract_jobs_from_page(source=platform.title())
+        
+        saved_count = 0
+        from app.services.job_scoring import job_scorer
+        from app.database.db import save_job
+        
+        scored_jobs = []
         for j in jobs:
             await log_job_search(j.title, j.company, j.location, j.salary, j.skills, j.url, j.source)
 
+            # Auto-score the job
+            score_res = await job_scorer.score_job(j)
+            if score_res.get("success"):
+                score = score_res.get("score", 0.0)
+                reasoning = score_res.get("reasoning", "")
+                scored_jobs.append({"job": j, "score": score, "reasoning": reasoning})
+
+                # Only save high value jobs automatically
+                if score > 6.0:
+                    await save_job(j.title, j.company, j.location, j.salary, j.skills, j.url, j.source, score)
+                    saved_count += 1
+        
         await save_task_checkpoint(task_id, "completed")
-        return {"success": True, "source": "LinkedIn", "jobs_found": len(jobs), "message": f"Found {len(jobs)} jobs on LinkedIn."}
-
-    async def search_internshala_jobs(self, query: str) -> Dict[str, Any]:
-        """Search Internshala for jobs/internships."""
-        logger.info(f"Searching Internshala for {query}")
         
-        url_query = query.replace(" ", "%20")
-        url = f"https://internshala.com/internships/keywords-{url_query}"
-        
-        await browser_agent.goto_url(url)
-        await asyncio.sleep(3)
+        # Sort best jobs to return to the planner context
+        scored_jobs.sort(key=lambda x: x["score"], reverse=True)
+        top_jobs = [{"title": sj["job"].title, "company": sj["job"].company, "url": sj["job"].url, "score": sj["score"]} for sj in scored_jobs[:3]]
 
-        jobs = await self._extract_jobs_from_page(source="Internshala")
-        for j in jobs:
-            await log_job_search(j.title, j.company, j.location, j.salary, j.skills, j.url, j.source)
-
-        return {"success": True, "source": "Internshala", "jobs_found": len(jobs), "message": f"Found {len(jobs)} internships on Internshala."}
-
-    async def search_wellfound_jobs(self, query: str) -> Dict[str, Any]:
-        """Search Wellfound (formerly AngelList) for jobs."""
-        logger.info(f"Searching Wellfound for {query}")
-        
-        url_query = query.replace(" ", "+")
-        url = f"https://wellfound.com/role/l/{url_query}"
-        
-        await browser_agent.goto_url(url)
-        await asyncio.sleep(3)
-
-        jobs = await self._extract_jobs_from_page(source="Wellfound")
-        for j in jobs:
-            await log_job_search(j.title, j.company, j.location, j.salary, j.skills, j.url, j.source)
-
-        return {"success": True, "source": "Wellfound", "jobs_found": len(jobs), "message": f"Found {len(jobs)} jobs on Wellfound."}
-
-    async def search_naukri_jobs(self, query: str) -> Dict[str, Any]:
-        """Search Naukri for jobs."""
-        logger.info(f"Searching Naukri for {query}")
-        
-        url_query = query.replace(" ", "-")
-        url = f"https://www.naukri.com/{url_query}-jobs"
-        
-        await browser_agent.goto_url(url)
-        await asyncio.sleep(3)
-
-        jobs = await self._extract_jobs_from_page(source="Naukri")
-        for j in jobs:
-            await log_job_search(j.title, j.company, j.location, j.salary, j.skills, j.url, j.source)
-
-        return {"success": True, "source": "Naukri", "jobs_found": len(jobs), "message": f"Found {len(jobs)} jobs on Naukri."}
+        return {
+            "success": True,
+            "source": platform.title(),
+            "jobs_found": len(jobs),
+            "highly_matched_jobs_saved": saved_count,
+            "top_matches": top_jobs,
+            "message": f"Found {len(jobs)} jobs. Saved {saved_count} top matches to DB."
+        }
 
     async def review_application(self, job_title: str, company: str, fields: Dict[str, str]) -> Dict[str, Any]:
         """Show required info and request user confirmation before submission."""
