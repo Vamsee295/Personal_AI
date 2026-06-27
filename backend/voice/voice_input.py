@@ -94,7 +94,7 @@ def _load_whisper(model_size: str = "base"):
         )
         _model_size = model_size
         logger.info("faster-whisper model '%s' ready.", model_size)
-        print("[VoiceInput] Whisper model ready.")
+        print(f"[VoiceInput] Whisper model ready.")
         return _whisper_model
 
     except ImportError:
@@ -153,7 +153,7 @@ def record_audio(duration: float = 5.0, sample_rate: int = _SAMPLE_RATE) -> Opti
                 if dev_idx is not None or rate != sample_rate:
                     logger.info("Recording fallback success: Device=%s, Rate=%d", dev_idx, rate)
                 break
-            except Exception:
+            except Exception as e:
                 # logger.debug("Failed opening mic (dev=%s, rate=%d): %s", dev_idx, rate, e)
                 continue
 

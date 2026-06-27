@@ -9,6 +9,7 @@ from fastapi.responses import StreamingResponse
 from app.models.schemas import (
     ChatRequest, ChatResponse,
     CodeGenerationRequest, CodeGenerationResponse,
+    SuccessResponse,
 )
 from app.services.ai_service import ai_service
 from app.utils.logger import get_logger

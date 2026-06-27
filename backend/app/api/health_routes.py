@@ -7,6 +7,7 @@ GET /api/screenshot/latest -- serve the most recent PNG from screenshots/
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException

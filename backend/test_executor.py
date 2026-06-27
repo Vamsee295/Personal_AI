@@ -8,6 +8,7 @@ Each test prints PASS/FAIL with details.
 """
 
 import sys
+import os
 import time
 from pathlib import Path
 

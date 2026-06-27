@@ -5,7 +5,8 @@ agents/file_agent.py – AI-driven file organisation (e.g. Downloads sorter).
 from __future__ import annotations
 import os
 import shutil
-from typing import Dict, List, Any
+from pathlib import Path
+from typing import Dict, List
 
 from app.core.security import assert_path_allowed
 from app.utils.logger import get_logger

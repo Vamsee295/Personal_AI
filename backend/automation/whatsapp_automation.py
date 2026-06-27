@@ -32,7 +32,7 @@ from __future__ import annotations
 import time
 import logging
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("whatsapp_automation")
 
@@ -148,6 +148,10 @@ def wait_for_whatsapp_load(driver, timeout: int = DEFAULT_TIMEOUT) -> None:
     Raises:
         TimeoutException if login doesn't complete within `timeout` seconds.
     """
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.common.exceptions import TimeoutException
 
     logger.info("Opening WhatsApp Web...")
     print("[WhatsApp] Opening https://web.whatsapp.com ...")
@@ -206,6 +210,7 @@ def search_contact(driver, contact_name: str) -> None:
     Raises:
         Exception if the search box cannot be found or clicked.
     """
+    from selenium.webdriver.common.by import By
     from selenium.webdriver.support.ui import WebDriverWait
     from selenium.webdriver.support import expected_conditions as EC
     from selenium.webdriver.common.action_chains import ActionChains

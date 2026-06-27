@@ -6,6 +6,7 @@ Supports both streaming and non-streaming completions.
 
 from __future__ import annotations
 import json
+import asyncio
 from typing import AsyncIterator, Optional, List, Dict, Any
 
 import aiohttp

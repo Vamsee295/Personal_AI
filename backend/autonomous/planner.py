@@ -2,6 +2,7 @@
 planner.py – Maps the AI's natural language thought into a discrete, actionable system command.
 """
 
+import json
 from typing import Dict, Any
 from app.utils.logger import get_logger
 

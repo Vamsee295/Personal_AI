@@ -15,11 +15,13 @@ except Exception as e:
     print(f"❌ pyttsx3 failure: {e}")
 
 try:
+    import speech_recognition as sr
     print("✅ speech_recognition is installed")
 except Exception as e:
     print(f"❌ speech_recognition failure: {e}")
 
 try:
+    import faster_whisper
     print("✅ faster_whisper is installed")
 except Exception as e:
     print(f"❌ faster_whisper failure: {e}")
@@ -46,6 +48,7 @@ except Exception as e:
 
 print("\n--- Selenium Check ---")
 try:
+    from selenium import webdriver
     print("✅ selenium is installed")
 except Exception as e:
     print(f"❌ selenium failure: {e}")

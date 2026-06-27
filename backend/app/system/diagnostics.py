@@ -3,6 +3,7 @@ system/diagnostics.py -- Runs dependency and health verification checks on start
 """
 
 from __future__ import annotations
+import asyncio
 import logging
 from pathlib import Path
 from app.services.tool_health import tool_health
@@ -43,6 +44,7 @@ async def run_startup_diagnostics() -> bool:
 
     # 3. Playwright Check
     try:
+        import playwright
         tool_health.report_success("browser")
         logger.info("[OK] Playwright module found.")
     except Exception as e:
@@ -52,6 +54,8 @@ async def run_startup_diagnostics() -> bool:
 
     # 4. Voice Check
     try:
+        import piper
+        from faster_whisper import WhisperModel
         tool_health.report_success("voice")
         logger.info("[OK] Piper TTS and Faster-Whisper modules found.")
     except Exception as e:

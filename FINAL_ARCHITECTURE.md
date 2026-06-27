@@ -1,30 +1,15 @@
-# Final Architecture V1
+# Final Architecture
 
-## Component Layout
-```text
-[ User Voice / Web Interface ] --> (FastAPI Router)
-                                        |
-                                [ Orchestrator Queue ]
-                                        |
-                                [ Agent Loop (Brain) ] <--> (Memory Manager / SQLite)
-                                        |
-                            +-----------+-----------+
-                            |                       |
-                    (Observe Stage)            (Plan Stage)
-                Screen Agent + Browser       Ollama (qwen2.5-coder:7b)
-                            |                       |
-                            +-----------+-----------+
-                                        |
-                                (Execute Stage)
-                            [ Action Executor ]
-                                        |
-                    +-----------+-------+-------+-----------+
-                    |           |               |           |
-            Playwright    PyAutoGUI      Vision/File    System
-            (Web UI)      (Desktop UI)   (Analysis)     (File IO)
-```
+## The Stack
+- **Frontend**: Next.js 14, React, Tailwind CSS, Shadcn UI
+- **Backend**: FastAPI, Python 3.10+, SQLite
+- **AI Core**: Ollama (local) using `qwen2.5-coder:7b`
+- **Automation**: Playwright, PyAutoGUI
 
-## Key Mechanisms
-1. **Event Stream (`event_stream.py`)**: Asynchronously publishes execution stages (`task_started`, `tool_selected`, `tool_finished`, `task_failed`) over WebSocket (`/ws/orchestrator`) to the Next.js `ExecutionTimeline`.
-2. **Observe -> Replan**: The Loop forces an observation of screen/DOM *before* making the next tool choice. If a tool fails (e.g. missing UI element), the retry loop catches it and feeds the error explicitly into the next LLM prompt context to self-correct.
-3. **Structured Tools**: Tool schemas enforced through generic mappings (e.g. `open_app`, `type_text`, `open_page`) removing tight-coupling to individual platforms.
+## Execution Flow
+1. **User Request**: Incoming via `/api/brain/execute` or WebSocket.
+2. **Action Router**: Determines if a strict rule applies (e.g. simple apps) or if it requires the LLM.
+3. **LLM Planner**: If required, Ollama is invoked with a strict JSON format prompt.
+4. **Executor**: Translates JSON into Python OS/Browser function calls.
+5. **Memory Manager**: Persists the result into `ultron.db` for future context building.
+6. **Safety Interception**: If the agent proposes a destructive command (Job Submissions), a `SAFETY HALT` is triggered before the executor can fire.

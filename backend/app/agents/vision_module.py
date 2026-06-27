@@ -15,12 +15,14 @@ Tesseract must be installed on Windows:
 
 from __future__ import annotations
 
+import io
 import json
 import re
 import time
+import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 
 import mss
 import mss.tools

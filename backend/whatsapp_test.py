@@ -65,7 +65,7 @@ try:
         close_driver,
         DEFAULT_PROFILE_DIR,
     )
-    print("  Module imported OK")
+    print(f"  Module imported OK")
     print(f"  Chrome profile: {DEFAULT_PROFILE_DIR}")
     record("Import whatsapp_automation", True)
 except ImportError as e:
@@ -132,13 +132,13 @@ print(f"\n  {passed}/{len(results)} tests passed")
 print('=' * 65)
 
 if sent_ok:
-    print("\n[SUCCESS] WhatsApp automation is working!")
+    print(f"\n[SUCCESS] WhatsApp automation is working!")
     print(f"  Message sent to '{CONTACT_NAME}'")
-    print("  Step 3 is DONE. Come back to move to Step 4.")
+    print(f"  Step 3 is DONE. Come back to move to Step 4.")
 else:
-    print("\n[WARNING] Send failed. Common fixes:")
-    print("  1. Check CONTACT_NAME matches EXACTLY what's in your WhatsApp")
-    print("  2. Make sure you scanned the QR code if it appeared")
-    print("  3. Check your internet connection")
-    print("  4. Delete chrome_profile/ and try again if session is corrupted")
+    print(f"\n[WARNING] Send failed. Common fixes:")
+    print(f"  1. Check CONTACT_NAME matches EXACTLY what's in your WhatsApp")
+    print(f"  2. Make sure you scanned the QR code if it appeared")
+    print(f"  3. Check your internet connection")
+    print(f"  4. Delete chrome_profile/ and try again if session is corrupted")
     sys.exit(1)

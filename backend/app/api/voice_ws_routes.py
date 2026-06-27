@@ -16,6 +16,7 @@ POST /voice/settings       → update rate, volume, voice
 from __future__ import annotations
 
 import asyncio
+import io
 import logging
 from typing import Optional
 

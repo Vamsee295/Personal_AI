@@ -22,6 +22,7 @@ import json
 import logging
 import re
 import threading
+import time
 from typing import Optional
 
 logger = logging.getLogger("voice_agent")
@@ -62,9 +63,9 @@ def generate_spoken_response(action: dict, result: dict) -> str:
     responses = {
         "open_app":              f"Done, I've opened {target or 'the application'} for you.",
         "open_url":              f"Done, I've opened {target or 'the website'} in your browser.",
-        "type_text":             "Done, I've typed that for you.",
+        "type_text":             f"Done, I've typed that for you.",
         "press_key":             f"Done, I pressed {value or target}.",
-        "mouse_click":           "Done, I clicked at the target location.",
+        "mouse_click":           f"Done, I clicked at the target location.",
         "take_screenshot":       "I've taken a screenshot and saved it.",
         "move_mouse":            "Done, I moved the mouse.",
         "scroll":                f"Done, I scrolled {value or 'the page'}.",
@@ -355,3 +356,8 @@ Now respond to the voice command with ONLY the JSON:"""
         result = self.process_voice_command(text)
         result["transcribed"] = text
         return result
+
+    async def on_task_completed(self, success: bool, message: str):
+        """Hook called when the orchestration loop finishes a task."""
+        prefix = "Task completed successfully." if success else "Task failed."
+        await self.speak(f"{prefix} {message}")

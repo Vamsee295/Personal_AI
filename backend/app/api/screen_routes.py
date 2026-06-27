@@ -133,7 +133,7 @@ async def screen_monitoring_loop():
                     for conn in active_connections:
                         try:
                             await conn.send_json({"type": "status", "message": "Error detected, analysing..."})
-                        except Exception:
+                        except:
                             pass
                             
                     prompt = (

@@ -1,17 +1,13 @@
-# Project Status - Release Candidate
+# Project Status
 
-**Phase**: Production Stabilization
-**Goal**: Consolidate features into a cohesive, reliable release candidate.
+**Status**: Release Candidate (RC1)
 
-## Status Overview
-- **Unified Orchestrator:** COMPLETED. The Brain module manages Task context and routes LLM planning efficiently using `qwen2.5-coder:7b`.
-- **Desktop AI Loop:** COMPLETED. Agent visually observes screen via `mss`, parses elements via PyMuPDF/VisionLLM, and executes via `pyautogui`. Headless xvfb fallback verified.
-- **Web Automation:** COMPLETED. Playwright tools abstracted into standard JSON schemas. Auto-resolution maps known aliases (e.g. `youtube`) to valid URLs.
-- **Job Agent:** COMPLETED. Handles safe pausing to prevent accidental application submission.
-- **Audio/Voice:** COMPLETED. Asynchronous Piper + Faster-Whisper pipeline merged into the global `get_orchestrator_queue()`.
-- **UI Tracking:** COMPLETED. Execution Timeline WebSocket live tracing is bound and responsive to `event_stream`.
+## Completed Milestones
+1. **Core Orchestration**: The `AgentContext` and `Observe -> Replan` loops correctly run and handle execution failures.
+2. **Frontend Unification**: The frontend successfully visualizes live planning and execution via WebSocket `ExecutionTimeline`.
+3. **Safety Halts**: Job submission flows correctly emit a halt signal, catching dangerous autonomous actions.
+4. **Resiliency**: Browser automation retries are functioning up to their limit.
 
-## Architecture Health
-- Repository linted to zero outstanding errors (via Ruff).
-- Integration Tests passing.
-- Frontend React Types clean.
+## Pending (Post-RC)
+1. Full X11/Display mapping for CI headless setups.
+2. Refactoring memory schema if large context windows become an issue.

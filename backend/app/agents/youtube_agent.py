@@ -3,6 +3,7 @@ agents/youtube_agent.py -- High-level YouTube Agent using Playwright capabilitie
 """
 
 from __future__ import annotations
+import asyncio
 import logging
 from typing import Dict, Any
 

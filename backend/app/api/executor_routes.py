@@ -157,8 +157,8 @@ async def execute_command(req: ExecuteRequest):
     # ── Step 0: Build memory context to inject into system prompt ─────────────
     mem_context = ""
     try:
-        from memory.memory_manager import memory as mem
-        mem_context = mem.build_memory_context(command)
+        from app.services.memory_manager import memory_manager as mem
+        mem_context = str(await mem.search_memory())
     except Exception as mem_exc:
         logger.warning("Memory context build failed (non-fatal): %s", mem_exc)
 
@@ -216,20 +216,23 @@ async def execute_command(req: ExecuteRequest):
     result = await asyncio.to_thread(execute_action, action_dict)
     duration_ms = int((time.time() - t_start) * 1000)
 
+
     # ── Step 4: Save to memory (non-fatal) ───────────────────────────────────
     try:
-        from memory.memory_manager import memory as mem
+        from app.services.memory_manager import memory_manager as mem
+        import aiosqlite
+        from app.database.db import DB_PATH
         result_str = result.get("message") or result.get("error") or str(result)
-        mem.save_command(
-            user_input=command,
-            action_taken=action_dict,
-            result=result_str,
-            success=bool(result.get("success", False)),
-            duration_ms=duration_ms,
-        )
-        mem.extract_and_save_preferences(command, action_dict)
+
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute(
+                "INSERT INTO task_history (task, result) VALUES (?, ?)",
+                (command, result_str)
+            )
+            await db.commit()
     except Exception as mem_exc:
         logger.warning("Memory save failed (non-fatal): %s", mem_exc)
+
 
     return ExecuteResponse(
         command=command,

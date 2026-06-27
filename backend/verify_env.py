@@ -1,4 +1,5 @@
 import mss
+import numpy as np
 import pytesseract
 from PIL import Image
 import os
