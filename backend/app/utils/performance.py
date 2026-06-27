@@ -32,7 +32,7 @@ class PerformanceMonitor:
     def generate_report(self) -> None:
         """Write out the aggregated averages to a JSON file."""
         report = {"timestamp": datetime.utcnow().isoformat() + "Z", "averages_ms": {}}
-        
+
         for k, v in self.metrics.items():
             if v:
                 report["averages_ms"][k] = sum(v) / len(v)

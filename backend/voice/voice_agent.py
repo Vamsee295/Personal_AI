@@ -223,78 +223,39 @@ class VoiceAgent:
 
     async def process_voice_command(self, command_text: str) -> dict:
         """
-        Full voice command pipeline:
-          1. Build memory context (Step 5 integration)
-          2. Send to Ollama with engineered system prompt
-          3. Parse JSON action
-          4. Execute via action_executor
-          5. Generate spoken response + speak it
-          6. Save to memory
-
-        Args:
-            command_text : The transcribed user command.
-
-        Returns:
-            Dict with {success, action, result, spoken_response}.
+        Voice commands are now dispatched directly to the global orchestrator.
+        The Brain orchestrator will handle state tracking, memory injection, planning, and executing.
         """
-        import time as _time
+        logger.info("Dispatching voice command to Orchestrator: %s", command_text[:100])
 
-        logger.info("Processing voice command: %s", command_text[:100])
-        t_start = _time.time()
-
-        # ── Step 1: Memory context ────────────────────────────────────────────
-        mem_context = ""
         try:
-            from app.services.memory_manager import memory_manager
-            # Load user memory context implicitly to help guide parsing if necessary
-            # For JARVIS we're primarily relying on the agent_loop context, 
-            # but voice commands inject user preferences directly
-            user_prefs = await memory_manager.search_memory()
-        except Exception as mem_exc:
-            logger.warning("Memory context error (non-fatal): %s", mem_exc)
-
-        # ── Step 2: Planner (Ollama tool call) ───────────────────────────────────────────────
-        action_dict = {}
-        try:
-            # Reusing the existing async think -> plan -> execute loop from the background
-            from autonomous.brain import think
-            from autonomous.planner import plan
+            # Just push directly to the brain's orchestrator queue
+            from autonomous.agent_loop import get_orchestrator_queue
+            import uuid
             
-            ai_thought = await think(command_text)
-            action_dict = plan(ai_thought)
+            queue = get_orchestrator_queue()
+            task_id = str(uuid.uuid4())
+            await queue.put({
+                "command": command_text,
+                "task_id": task_id,
+                "source": "voice"
+            })
             
-        except Exception as ollama_exc:
-            logger.error("Ollama/Planner call failed: %s", ollama_exc)
+            # The agent loop emits "task_completed" or "task_failed" when done.
+            # Voice module watches that stream from the frontend or an internal watcher
+            # to know when to speak back, or we let the main loop speak back directly if needed.
+            # For immediate confirmation:
+            return {
+                "success": True,
+                "command": command_text,
+                "task_id": task_id,
+                "spoken_response": "I'm on it.",
+            }
+        except Exception as e:
+            logger.error(f"Failed to dispatch voice command: {e}")
             from voice.voice_output import speak
-            speak("Sorry, I could not process that command right now.")
-            return {"success": False, "error": str(ollama_exc)}
-
-        # ── Step 3: Execute action ────────────────────────────────────────────
-        result = {}
-        try:
-            from autonomous.executor import execute_plan
-            res_str = await execute_plan(action_dict)
-            result = {"success": True, "message": res_str}
-        except Exception as exec_exc:
-            logger.error("Action execution failed: %s", exec_exc)
-            result = {"success": False, "error": str(exec_exc)}
-
-        # ── Step 4: Speak result ──────────────────────────────────────────────
-        spoken_text = generate_spoken_response(action_dict, result)
-        print(f"[VoiceAgent] Speaking: {spoken_text}")
-        try:
-            from app.services.voice_manager import voice_manager
-            voice_manager.speak(spoken_text)
-        except Exception as tts_exc:
-            logger.warning("TTS failed (non-fatal): %s", tts_exc)
-
-        return {
-            "success": bool(result.get("success", False)),
-            "command": command_text,
-            "action": action_dict,
-            "result": result,
-            "spoken_response": spoken_text,
-        }
+            speak("Sorry, there was an issue processing your request.")
+            return {"success": False, "error": str(e)}
 
     # ─────────────────────────────────────────────────────────────────────────
     #  OLLAMA HELPER (synchronous -- for use from threads)
@@ -395,3 +356,8 @@ Now respond to the voice command with ONLY the JSON:"""
         result = self.process_voice_command(text)
         result["transcribed"] = text
         return result
+
+    async def on_task_completed(self, success: bool, message: str):
+        """Hook called when the orchestration loop finishes a task."""
+        prefix = "Task completed successfully." if success else "Task failed."
+        await self.speak(f"{prefix} {message}")

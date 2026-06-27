@@ -46,6 +46,8 @@ async def think(context: str, action_history: List[Dict[str, str]] = None, model
     You must accomplish tasks by calling the provided tools. {health_str}
     You can navigate the browser, click elements, read the page, fill inputs, search for jobs, and prepare applications.
     
+    If you need to know the coordinates of an element on the screen (e.g. to click it), or you need to understand the visual state of the screen, you MUST first call `vision_analyze` or `vision_describe_screen` to get that information.
+
     [LONG TERM MEMORY]
     User Profile: {json.dumps(user_profile)}
     User Preferences: {json.dumps(user_prefs)}

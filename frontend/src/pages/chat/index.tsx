@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { Send, Mic, Terminal, MoreHorizontal, AlertCircle } from "lucide-react";
+import { SafetyDialog } from "@/components/SafetyDialog";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { chatStream, getHealth, type ChatMessage as APIChatMessage } from "@/lib/api";
@@ -31,6 +32,10 @@ const Chat = () => {
   ]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+
+  const [safetyDialogOpen, setSafetyDialogOpen] = useState(false);
+  const [safetyMessage, setSafetyMessage] = useState("");
+  const [pendingSafetyCommand, setPendingSafetyCommand] = useState("");
   const [ollamaOnline, setOllamaOnline] = useState<boolean | null>(null);
   const [history, setHistory] = useState<APIChatMessage[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -60,6 +65,7 @@ const Chat = () => {
     const aiId = Date.now() + 1;
     setMessages((prev) => [...prev, { id: aiId, role: "ai", content: "", timestamp: getTime() }]);
 
+
     try {
       let fullResponse = "";
 
@@ -70,9 +76,17 @@ const Chat = () => {
         );
       }
 
+      // Check for SAFETY HALT
+      if (fullResponse.includes("SAFETY HALT")) {
+        setSafetyMessage(fullResponse);
+        setPendingSafetyCommand("I confirm that the application looks correct. Please proceed with the submission.");
+        setSafetyDialogOpen(true);
+      }
+
       // Update history for next turn
       setHistory([...newHistory, { role: "assistant", content: fullResponse }]);
     } catch (err) {
+
       const errorMsg = err instanceof Error ? err.message : "Connection failed. Is the backend running?";
       setMessages((prev) =>
         prev.map((m) =>
@@ -217,6 +231,21 @@ const Chat = () => {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
+
+      <SafetyDialog
+        isOpen={safetyDialogOpen}
+        onOpenChange={setSafetyDialogOpen}
+        message={safetyMessage}
+        onConfirm={() => {
+          setInput(pendingSafetyCommand);
+          // Small delay to allow state update before handleSend
+          setTimeout(() => {
+            const sendBtn = document.getElementById("send-msg-btn");
+            if (sendBtn) sendBtn.click();
+          }, 100);
+        }}
+      />
+
       {/* Header */}
       <div className="px-6 py-4 border-b border-border flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
@@ -315,6 +344,7 @@ const Chat = () => {
             <Mic className="w-4 h-4 text-muted-foreground" />
           </button>
           <button
+            id="send-msg-btn"
             onClick={handleSend}
             disabled={!input.trim() || isTyping}
             className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-40"
